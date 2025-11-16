@@ -144,12 +144,6 @@ function VehicleController:StartControl(seat)
     print("[VehicleController] BodyVelocity.MaxForce:", bodyVel.MaxForce)
     print("[VehicleController] Seat.Anchored:", seat.Anchored)
 
-    -- Disable the VehicleSeat's default behavior
-    if seat:IsA("VehicleSeat") then
-        seat.Disabled = true
-        print("[VehicleController] Disabled VehicleSeat default behavior")
-    end
-
     -- Activate thruster effects
     for _, thruster in ipairs(VehicleController.Thrusters) do
         local fire = thruster:FindFirstChild("ThrustEffect")
