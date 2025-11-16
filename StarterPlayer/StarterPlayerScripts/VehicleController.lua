@@ -112,35 +112,36 @@ function VehicleController:StartControl(seat)
     end
     print("[VehicleController] Unanchored all hovercraft parts")
 
-    -- Create Attachment for constraints
-    local attachment = seat:FindFirstChild("VehicleAttachment")
-    if not attachment then
-        attachment = Instance.new("Attachment")
-        attachment.Name = "VehicleAttachment"
-        attachment.Parent = seat
+    -- Calculate total mass of vehicle for proper force
+    local totalMass = 0
+    for _, part in ipairs(VehicleController.HovercraftParts) do
+        totalMass = totalMass + part:GetMass()
     end
 
-    -- Create LinearVelocity for movement (modern constraint)
-    if not seat:FindFirstChild("LinearVelocity") then
-        local linearVel = Instance.new("LinearVelocity")
-        linearVel.Name = "LinearVelocity"
-        linearVel.Attachment0 = attachment
-        linearVel.MaxForce = math.huge
-        linearVel.VectorVelocity = Vector3.new(0, 0, 0)
-        linearVel.RelativeTo = Enum.ActuatorRelativeTo.World
-        linearVel.Parent = seat
+    print("[VehicleController] Total vehicle mass:", totalMass)
+
+    -- Create BodyVelocity for movement
+    if not seat:FindFirstChild("BodyVelocity") then
+        local bodyVel = Instance.new("BodyVelocity")
+        bodyVel.Name = "BodyVelocity"
+        -- MaxForce needs to be strong enough to move the entire mass
+        bodyVel.MaxForce = Vector3.new(totalMass * 1000, totalMass * 1000, totalMass * 1000)
+        bodyVel.Velocity = Vector3.new(0, 0, 0)
+        bodyVel.P = 10000
+        bodyVel.Parent = seat
+        print("[VehicleController] Created BodyVelocity with MaxForce:", bodyVel.MaxForce)
     end
 
-    -- Create AlignOrientation for rotation (modern constraint)
-    if not seat:FindFirstChild("AlignOrientation") then
-        local alignOrient = Instance.new("AlignOrientation")
-        alignOrient.Name = "AlignOrientation"
-        alignOrient.Attachment0 = attachment
-        alignOrient.Mode = Enum.OrientationAlignmentMode.OneAttachment
-        alignOrient.MaxTorque = math.huge
-        alignOrient.Responsiveness = 50
-        alignOrient.CFrame = seat.CFrame
-        alignOrient.Parent = seat
+    -- Create BodyGyro for rotation
+    if not seat:FindFirstChild("BodyGyro") then
+        local bodyGyro = Instance.new("BodyGyro")
+        bodyGyro.Name = "BodyGyro"
+        bodyGyro.MaxTorque = Vector3.new(totalMass * 500, totalMass * 500, totalMass * 500)
+        bodyGyro.P = 20000
+        bodyGyro.D = 500
+        bodyGyro.CFrame = seat.CFrame
+        bodyGyro.Parent = seat
+        print("[VehicleController] Created BodyGyro with MaxTorque:", bodyGyro.MaxTorque)
     end
 
     -- Activate thruster effects
@@ -180,12 +181,10 @@ function VehicleController:StopControl()
 
     -- Remove forces
     if VehicleController.CurrentSeat then
-        local linearVel = VehicleController.CurrentSeat:FindFirstChild("LinearVelocity")
-        local alignOrient = VehicleController.CurrentSeat:FindFirstChild("AlignOrientation")
-        local attachment = VehicleController.CurrentSeat:FindFirstChild("VehicleAttachment")
-        if linearVel then linearVel:Destroy() end
-        if alignOrient then alignOrient:Destroy() end
-        if attachment then attachment:Destroy() end
+        local bodyVel = VehicleController.CurrentSeat:FindFirstChild("BodyVelocity")
+        local bodyGyro = VehicleController.CurrentSeat:FindFirstChild("BodyGyro")
+        if bodyVel then bodyVel:Destroy() end
+        if bodyGyro then bodyGyro:Destroy() end
     end
 
     VehicleController.CurrentSeat = nil
@@ -203,10 +202,10 @@ function VehicleController:Update()
     end
 
     local seat = VehicleController.CurrentSeat
-    local linearVel = seat:FindFirstChild("LinearVelocity")
-    local alignOrient = seat:FindFirstChild("AlignOrientation")
+    local bodyVel = seat:FindFirstChild("BodyVelocity")
+    local bodyGyro = seat:FindFirstChild("BodyGyro")
 
-    if not linearVel or not alignOrient then
+    if not bodyVel or not bodyGyro then
         return
     end
 
@@ -238,22 +237,25 @@ function VehicleController:Update()
         speed = speed + (thruster:GetAttribute("ThrustPower") or 0) * 0.05
     end
 
-    -- Apply movement velocity
-    local targetVelocity = Vector3.new(0, 15, 0)  -- Default hover velocity
+    -- Apply movement velocity - ALWAYS include upward velocity to hover
+    local targetVelocity = Vector3.new(0, 20, 0)  -- Base hover velocity
+
     if moveDirection.Magnitude > 0 then
-        targetVelocity = moveDirection.Unit * speed + Vector3.new(0, 15, 0)
+        -- Add horizontal/vertical movement to hover velocity
+        local moveVelocity = moveDirection.Unit * speed
+        targetVelocity = targetVelocity + moveVelocity
     end
 
-    linearVel.VectorVelocity = targetVelocity
+    bodyVel.Velocity = targetVelocity
 
     -- Apply rotation
     if input.Q then
-        alignOrient.CFrame = alignOrient.CFrame * CFrame.Angles(0, math.rad(TURN_SPEED), 0)
+        bodyGyro.CFrame = bodyGyro.CFrame * CFrame.Angles(0, math.rad(TURN_SPEED), 0)
     elseif input.E then
-        alignOrient.CFrame = alignOrient.CFrame * CFrame.Angles(0, -math.rad(TURN_SPEED), 0)
+        bodyGyro.CFrame = bodyGyro.CFrame * CFrame.Angles(0, -math.rad(TURN_SPEED), 0)
     else
         -- Gradually align with seat orientation
-        alignOrient.CFrame = alignOrient.CFrame:Lerp(seat.CFrame, 0.1)
+        bodyGyro.CFrame = bodyGyro.CFrame:Lerp(seat.CFrame, 0.1)
     end
 end
 
