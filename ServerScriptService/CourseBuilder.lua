@@ -1,6 +1,6 @@
 --[[
     CourseBuilder.lua
-    Creates obstacle course automatically
+    Creates obstacle course automatically with collectibles
     Location: ServerScriptService > CourseBuilder (Script)
 ]]
 
@@ -9,9 +9,131 @@ print("[CourseBuilder] Starting...")
 local ServerScriptService = game:GetService("ServerScriptService")
 local RunService = game:GetService("RunService")
 
-local CollectibleManager = require(ServerScriptService:WaitForChild("CollectibleManager"))
+-- Load DataManager for coin rewards
+local DataManager = require(ServerScriptService:WaitForChild("DataManager"))
 
 local CourseBuilder = {}
+
+-- Create a collectible coin
+function CourseBuilder:CreateCoin(position, value)
+    local coin = Instance.new("Part")
+    coin.Name = "Coin"
+    coin.Size = Vector3.new(4, 4, 0.5)
+    coin.Position = position
+    coin.Anchored = true
+    coin.CanCollide = false
+    coin.BrickColor = BrickColor.new("Bright yellow")
+    coin.Material = Enum.Material.Neon
+    coin.Shape = Enum.PartType.Cylinder
+    coin.Orientation = Vector3.new(0, 0, 90)
+
+    coin:SetAttribute("CoinValue", value or 100)
+    coin:SetAttribute("IsCollectible", true)
+
+    local light = Instance.new("PointLight")
+    light.Brightness = 2
+    light.Color = Color3.fromRGB(255, 255, 0)
+    light.Range = 20
+    light.Parent = coin
+
+    local sparkle = Instance.new("Sparkles")
+    sparkle.SparkleColor = Color3.fromRGB(255, 255, 0)
+    sparkle.Parent = coin
+
+    local debounce = {}
+    coin.Touched:Connect(function(hit)
+        local character = hit.Parent
+        local player = game.Players:GetPlayerFromCharacter(character)
+
+        if player and not debounce[player.UserId] then
+            debounce[player.UserId] = true
+
+            local value = coin:GetAttribute("CoinValue") or 100
+            DataManager:AddCoins(player, value)
+
+            print("[CourseBuilder]", player.Name, "collected coin worth", value)
+
+            local sound = Instance.new("Sound")
+            sound.SoundId = "rbxassetid://5153328183"
+            sound.Volume = 0.5
+            sound.Parent = coin
+            sound:Play()
+
+            coin.Transparency = 1
+            for _, child in ipairs(coin:GetChildren()) do
+                if child:IsA("Light") or child:IsA("Sparkles") then
+                    child.Enabled = false
+                end
+            end
+
+            task.delay(10, function()
+                coin.Transparency = 0
+                for _, child in ipairs(coin:GetChildren()) do
+                    if child:IsA("Light") or child:IsA("Sparkles") then
+                        child.Enabled = true
+                    end
+                end
+                debounce[player.UserId] = nil
+            end)
+        end
+    end)
+
+    coin.Parent = workspace
+    return coin
+end
+
+-- Create finish line
+function CourseBuilder:CreateFinishLine(position, size)
+    local finish = Instance.new("Part")
+    finish.Name = "FinishLine"
+    finish.Size = size or Vector3.new(50, 20, 2)
+    finish.Position = position
+    finish.Anchored = true
+    finish.CanCollide = false
+    finish.BrickColor = BrickColor.new("Lime green")
+    finish.Material = Enum.Material.Neon
+    finish.Transparency = 0.5
+
+    for i = 0, 4 do
+        for j = 0, 1 do
+            local square = Instance.new("Part")
+            square.Size = Vector3.new(10, 10, 0.1)
+            square.Position = finish.Position + Vector3.new(-20 + i*10, -5 + j*10, 0)
+            square.Anchored = true
+            square.CanCollide = false
+            square.BrickColor = (i + j) % 2 == 0 and BrickColor.new("Black") or BrickColor.new("White")
+            square.Parent = finish
+        end
+    end
+
+    local debounce = {}
+    finish.Touched:Connect(function(hit)
+        local character = hit.Parent
+        local player = game.Players:GetPlayerFromCharacter(character)
+
+        if player and not debounce[player.UserId] then
+            debounce[player.UserId] = true
+
+            local reward = 5000
+            DataManager:AddCoins(player, reward)
+
+            print("[CourseBuilder]", player.Name, "crossed finish line! Reward:", reward)
+
+            local sound = Instance.new("Sound")
+            sound.SoundId = "rbxassetid://5153328183"
+            sound.Volume = 1
+            sound.Parent = finish
+            sound:Play()
+
+            task.delay(5, function()
+                debounce[player.UserId] = nil
+            end)
+        end
+    end)
+
+    finish.Parent = workspace
+    return finish
+end
 
 -- Create start platform
 function CourseBuilder:CreateStartPlatform()
@@ -198,7 +320,7 @@ function CourseBuilder:BuildCourse()
     for i = 1, 5 do
         local pos = Vector3.new(math.random(-10, 10), 30, currentZ)
         self:CreateRing(pos, Vector3.new(0, 0, 90))
-        CollectibleManager:CreateCoin(pos, 100)
+        self:CreateCoin(pos, 100)
         currentZ = currentZ + 40
     end
 
@@ -206,7 +328,7 @@ function CourseBuilder:BuildCourse()
     for i = 1, 3 do
         local pos = Vector3.new(0, 30, currentZ)
         self:CreateSpinningWall(pos)
-        CollectibleManager:CreateCoin(pos + Vector3.new(20, 0, 0), 200)
+        self:CreateCoin(pos + Vector3.new(20, 0, 0), 200)
         currentZ = currentZ + 50
     end
 
@@ -214,7 +336,7 @@ function CourseBuilder:BuildCourse()
     for i = 1, 4 do
         local pos = Vector3.new(math.random(-5, 5), 30, currentZ)
         self:CreateWallGap(pos)
-        CollectibleManager:CreateCoin(pos + Vector3.new(0, 0, 5), 150)
+        self:CreateCoin(pos + Vector3.new(0, 0, 5), 150)
         currentZ = currentZ + 45
     end
 
@@ -223,7 +345,7 @@ function CourseBuilder:BuildCourse()
         local startPos = Vector3.new(-20, 25, currentZ)
         local endPos = Vector3.new(20, 25, currentZ)
         self:CreateMovingPlatform(startPos, endPos, 0.02)
-        CollectibleManager:CreateCoin(Vector3.new(0, 30, currentZ), 250)
+        self:CreateCoin(Vector3.new(0, 30, currentZ), 250)
         currentZ = currentZ + 50
     end
 
@@ -232,13 +354,13 @@ function CourseBuilder:BuildCourse()
         local pos = Vector3.new(math.random(-15, 15), 35, currentZ)
         local rotation = Vector3.new(0, math.random(0, 45), 90)
         self:CreateRing(pos, rotation)
-        CollectibleManager:CreateCoin(pos, 300)
+        self:CreateCoin(pos, 300)
         currentZ = currentZ + 35
     end
 
     -- Finish line
     local finishPos = Vector3.new(0, 30, currentZ + 30)
-    CollectibleManager:CreateFinishLine(finishPos, Vector3.new(60, 30, 2))
+    self:CreateFinishLine(finishPos, Vector3.new(60, 30, 2))
 
     print("[CourseBuilder] Course complete! Length:", currentZ, "studs")
 end

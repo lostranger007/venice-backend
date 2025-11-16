@@ -41,6 +41,7 @@ shopCorner.Parent = shopFrame
 
 -- Header
 local header = Instance.new("Frame")
+header.Name = "Header"
 header.Size = UDim2.new(1, 0, 0, 50)
 header.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
 header.BorderSizePixel = 0
