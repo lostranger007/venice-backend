@@ -109,8 +109,9 @@ function VehicleController:StartControl(seat)
     -- Unanchor all parts so they can move
     for _, part in ipairs(VehicleController.HovercraftParts) do
         part.Anchored = false
+        print("[VehicleController] Unanchored:", part.Name, "Anchored =", part.Anchored)
     end
-    print("[VehicleController] Unanchored all hovercraft parts")
+    print("[VehicleController] Finished unanchoring all hovercraft parts")
 
     -- Calculate total mass of vehicle for proper force
     local totalMass = 0
@@ -139,6 +140,15 @@ function VehicleController:StartControl(seat)
     bodyGyro.Parent = seat
 
     print("[VehicleController] Created BodyVelocity and BodyGyro with unlimited force")
+    print("[VehicleController] BodyVelocity.Velocity:", bodyVel.Velocity)
+    print("[VehicleController] BodyVelocity.MaxForce:", bodyVel.MaxForce)
+    print("[VehicleController] Seat.Anchored:", seat.Anchored)
+
+    -- Disable the VehicleSeat's default behavior
+    if seat:IsA("VehicleSeat") then
+        seat.Disabled = true
+        print("[VehicleController] Disabled VehicleSeat default behavior")
+    end
 
     -- Activate thruster effects
     for _, thruster in ipairs(VehicleController.Thrusters) do
@@ -192,6 +202,7 @@ function VehicleController:StopControl()
 end
 
 -- Update vehicle physics
+local updateCounter = 0
 function VehicleController:Update()
     if not VehicleController.Active or not VehicleController.CurrentSeat then
         return
@@ -202,7 +213,14 @@ function VehicleController:Update()
     local bodyGyro = seat:FindFirstChild("HovercraftBodyGyro")
 
     if not bodyVel or not bodyGyro then
+        warn("[VehicleController] BodyVelocity or BodyGyro not found!")
         return
+    end
+
+    -- Debug every 60 frames (about once per second)
+    updateCounter = updateCounter + 1
+    if updateCounter % 60 == 0 then
+        print("[VehicleController] Update - Seat.Anchored:", seat.Anchored, "Velocity:", seat.AssemblyLinearVelocity)
     end
 
     -- Calculate movement direction
