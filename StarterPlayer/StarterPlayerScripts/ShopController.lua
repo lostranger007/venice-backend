@@ -207,7 +207,7 @@ function ShopController:OpenBuildMenu()
             itemButton.MouseButton1Click:Connect(function()
                 if _G.BuildingSystem then
                     _G.BuildingSystem:StartBuilding(item)
-                    ShopController:ShowNotification("Building " .. item.Name .. "! Click to place, R/E to rotate, X to delete, ESC to cancel", Color3.fromRGB(100, 200, 255))
+                    ShopController:ShowNotification("Building " .. item.Name .. "! Click to place, R to rotate, X to delete, ESC to cancel", Color3.fromRGB(100, 200, 255))
                     buildMenu:Destroy()
                 else
                     warn("[ShopController] BuildingSystem not found!")

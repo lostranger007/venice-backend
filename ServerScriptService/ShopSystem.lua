@@ -16,15 +16,30 @@ DataManager:Init()
 
 -- Create a block
 local function createBlock(itemData, player)
-    local block = Instance.new("Part")
-    block.Name = itemData.BlockType
-    block.Size = itemData.Size
-    block.Color = itemData.Color
-    block.Material = Enum.Material.SmoothPlastic
-    block.TopSurface = Enum.SurfaceType.Smooth
-    block.BottomSurface = Enum.SurfaceType.Smooth
-    block.Anchored = false
-    block.CanCollide = true
+    local block
+
+    -- Create VehicleSeat for pilot seats
+    if itemData.BlockType == "Seat" then
+        block = Instance.new("VehicleSeat")
+        block.Name = "PilotSeat"
+        block.Size = itemData.Size
+        block.Color = itemData.Color
+        block.TopSurface = Enum.SurfaceType.Smooth
+        block.BottomSurface = Enum.SurfaceType.Smooth
+        block.Anchored = false
+        block.CanCollide = true
+    else
+        -- Regular part for everything else
+        block = Instance.new("Part")
+        block.Name = itemData.BlockType
+        block.Size = itemData.Size
+        block.Color = itemData.Color
+        block.Material = Enum.Material.SmoothPlastic
+        block.TopSurface = Enum.SurfaceType.Smooth
+        block.BottomSurface = Enum.SurfaceType.Smooth
+        block.Anchored = false
+        block.CanCollide = true
+    end
 
     if itemData.Transparency then
         block.Transparency = itemData.Transparency
@@ -34,9 +49,25 @@ local function createBlock(itemData, player)
     block:SetAttribute("IsHovercraftPart", true)
     block:SetAttribute("Owner", player.UserId)
 
-    -- Add thruster effects if needed
-    if itemData.Category == "Thrusters" and itemData.ThrustPower then
-        block:SetAttribute("ThrustPower", itemData.ThrustPower)
+    -- Add thruster effects and attributes
+    if itemData.Category == "Thrusters" then
+        if itemData.ThrustPower then
+            block:SetAttribute("ThrustPower", itemData.ThrustPower)
+
+            -- Add fire effect
+            local fire = Instance.new("Fire")
+            fire.Name = "ThrustEffect"
+            fire.Size = 5
+            fire.Heat = 10
+            fire.Color = Color3.fromRGB(255, 100, 0)
+            fire.SecondaryColor = Color3.fromRGB(255, 200, 0)
+            fire.Enabled = false
+            fire.Parent = block
+        end
+
+        if itemData.HoverForce then
+            block:SetAttribute("HoverForce", itemData.HoverForce)
+        end
     end
 
     return block

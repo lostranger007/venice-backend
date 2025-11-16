@@ -231,11 +231,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             BuildingSystem.Rotation = (BuildingSystem.Rotation + 90) % 360
             print("[BuildingSystem] Rotated to:", BuildingSystem.Rotation)
         end
-    elseif input.KeyCode == Enum.KeyCode.E then
-        if BuildingSystem.Enabled then
-            BuildingSystem.Rotation = (BuildingSystem.Rotation - 90) % 360
-            print("[BuildingSystem] Rotated to:", BuildingSystem.Rotation)
-        end
     elseif input.KeyCode == Enum.KeyCode.X then
         BuildingSystem:DeleteBlock()
     elseif input.KeyCode == Enum.KeyCode.Escape then
@@ -253,7 +248,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 print("[BuildingSystem] Initialized")
-print("[BuildingSystem] Controls: Click=Place, R/E=Rotate, X=Delete, ESC=Cancel")
+print("[BuildingSystem] Controls: Click=Place, R=Rotate, X=Delete, ESC=Cancel")
 
 -- Export globally
 _G.BuildingSystem = BuildingSystem
