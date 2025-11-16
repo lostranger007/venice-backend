@@ -14,9 +14,12 @@ local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local mouse = player:GetMouse()
 
--- Wait for character to load
-local character = player.Character or player.CharacterAdded:Wait()
+-- Wait for character to load properly
+repeat task.wait() until player.Character
+local character = player.Character
 local humanoid = character:WaitForChild("Humanoid")
+
+print("[JetController] Character and humanoid loaded:", character.Name, humanoid.Name)
 
 local JetController = {}
 JetController.Active = false
