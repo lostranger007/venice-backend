@@ -21,7 +21,7 @@ ShopGui.CurrentCategory = "Blocks"
 
 -- Create main GUI
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "HovercraftShopGui"
+screenGui.Name = "JetFighterShopGui"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
@@ -55,7 +55,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(0.5, 0, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "HOVERCRAFT SHOP"
+title.Text = "JET FIGHTER SHOP"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 24
 title.Font = Enum.Font.GothamBold
@@ -288,7 +288,7 @@ closeButton.MouseButton1Click:Connect(function()
 end)
 
 -- Initial setup
-ShopGui:SetCategory("Blocks")
+ShopGui:SetCategory("Cockpits")  -- Start with Cockpits category
 
 print("[ShopGui] Initialized")
 

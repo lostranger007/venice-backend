@@ -31,7 +31,7 @@ requestPurchaseEvent.Parent = ReplicatedStorage
 
 -- Show notification
 function ShopController:ShowNotification(message, color)
-    local screenGui = playerGui:FindFirstChild("HovercraftShopGui")
+    local screenGui = playerGui:FindFirstChild("JetFighterShopGui")
     if not screenGui then return end
 
     local notification = Instance.new("Frame")
@@ -63,7 +63,7 @@ end
 
 -- Update UI
 function ShopController:UpdateUI()
-    local screenGui = playerGui:FindFirstChild("HovercraftShopGui")
+    local screenGui = playerGui:FindFirstChild("JetFighterShopGui")
     if screenGui and screenGui:FindFirstChild("ShopFrame") then
         local coinLabel = screenGui.ShopFrame.Header:FindFirstChild("CoinLabel")
         if coinLabel then
@@ -85,7 +85,7 @@ end
 
 -- Create BUILD button
 function ShopController:CreateBuildButton()
-    local screenGui = playerGui:WaitForChild("HovercraftShopGui")
+    local screenGui = playerGui:WaitForChild("JetFighterShopGui")
 
     local buildButton = Instance.new("TextButton")
     buildButton.Name = "BuildButton"
@@ -110,7 +110,7 @@ end
 
 -- Open build menu
 function ShopController:OpenBuildMenu()
-    local screenGui = playerGui:FindFirstChild("HovercraftShopGui")
+    local screenGui = playerGui:FindFirstChild("JetFighterShopGui")
     if not screenGui then return end
 
     if screenGui:FindFirstChild("BuildMenu") then
