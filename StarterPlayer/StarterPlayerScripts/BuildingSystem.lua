@@ -158,7 +158,7 @@ function BuildingSystem:WeldToNearbyBlocks(block)
     for _, part in ipairs(workspace:GetDescendants()) do
         if part:IsA("BasePart") and
            part ~= block and
-           part:GetAttribute("IsHovercraftPart") and
+           part:GetAttribute("IsJetPart") and
            part:GetAttribute("Owner") == player.UserId then
 
             local distance = (part.Position - block.Position).Magnitude

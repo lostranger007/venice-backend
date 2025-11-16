@@ -1,269 +1,275 @@
 --[[
-    VehicleController.lua
-    Controls hovercraft movement when player sits in seat
+    JetController.lua
+    Mouse-based fighter jet flight controller
     Location: StarterPlayer > StarterPlayerScripts > VehicleController (LocalScript)
 ]]
 
-print("[VehicleController] Starting...")
+print("[JetController] Starting...")
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
-local humanoid = character:WaitForChild("Humanoid")
+local camera = workspace.CurrentCamera
+local mouse = player:GetMouse()
 
-local VehicleController = {}
-VehicleController.Active = false
-VehicleController.CurrentSeat = nil
-VehicleController.HovercraftParts = {}
-VehicleController.Thrusters = {}
-VehicleController.HoverPads = {}
+local JetController = {}
+JetController.Active = false
+JetController.CurrentCockpit = nil
+JetController.JetParts = {}
+JetController.Engines = {}
+JetController.Wings = {}
+JetController.Weapons = {}
+JetController.Throttle = 0  -- 0 to 1
+JetController.MaxSpeed = 100
+JetController.TotalThrust = 0
+JetController.Maneuverability = 1.0
 
 -- Input state
 local input = {
-    W = false,
-    A = false,
-    S = false,
-    D = false,
-    Space = false,
-    LeftShift = false,
-    Q = false,
-    E = false
+    W = false,  -- Throttle up
+    S = false,  -- Throttle down
+    A = false,  -- Roll left
+    D = false,  -- Roll right
+    Space = false,  -- Afterburner
+    MouseHeld = false  -- Fire weapons
 }
 
 -- Settings
-local BASE_SPEED = 50  -- Base movement speed even without thrusters
-local THRUST_MULTIPLIER = 5  -- Multiplier for thruster power
-local HOVER_MULTIPLIER = 1.5
-local TURN_SPEED = 2
-local MAX_SPEED = 150
-local HOVER_HEIGHT = 10
+local THROTTLE_SPEED = 0.5  -- How fast throttle changes
+local ROLL_SPEED = 3  -- Roll speed in degrees
+local MOUSE_SENSITIVITY = 0.3  -- How responsive mouse control is
+local AFTERBURNER_MULTIPLIER = 2.0
 
--- Find all connected parts
-function VehicleController:FindHovercraftParts(seat)
+-- Find all connected jet parts
+function JetController:FindJetParts(cockpit)
     local parts = {}
-    local thrusters = {}
-    local hoverPads = {}
+    local engines = {}
+    local wings = {}
+    local weapons = {}
+    local totalThrust = 0
+    local maxSpeed = 100
+    local maneuverability = 1.0
 
     -- Get all parts in workspace
     for _, part in ipairs(workspace:GetDescendants()) do
         if part:IsA("BasePart") and
-           part:GetAttribute("IsHovercraftPart") and
+           part:GetAttribute("IsJetPart") and
            part:GetAttribute("Owner") == player.UserId then
 
             table.insert(parts, part)
 
-            -- Check for thrusters
+            -- Check for engines
             if part:GetAttribute("ThrustPower") then
-                table.insert(thrusters, part)
+                table.insert(engines, part)
+                totalThrust = totalThrust + part:GetAttribute("ThrustPower")
+                local engineMaxSpeed = part:GetAttribute("MaxSpeed")
+                if engineMaxSpeed and engineMaxSpeed > maxSpeed then
+                    maxSpeed = engineMaxSpeed
+                end
             end
 
-            -- Check for hover pads
-            if part:GetAttribute("HoverForce") or part.Name == "HoverPad" then
-                table.insert(hoverPads, part)
+            -- Check for wings
+            if part:GetAttribute("Maneuverability") then
+                table.insert(wings, part)
+                maneuverability = maneuverability * part:GetAttribute("Maneuverability")
+            end
+
+            -- Check for weapons
+            if part:GetAttribute("WeaponType") then
+                table.insert(weapons, part)
             end
         end
     end
 
-    return parts, thrusters, hoverPads
+    return parts, engines, wings, weapons, totalThrust, maxSpeed, maneuverability
 end
 
--- Calculate center of mass
-function VehicleController:GetCenterOfMass()
-    if #VehicleController.HovercraftParts == 0 then
-        return Vector3.new(0, 0, 0)
-    end
+-- Start controlling jet
+function JetController:StartControl(cockpit)
+    JetController.Active = true
+    JetController.CurrentCockpit = cockpit
+    JetController.Throttle = 0
 
-    local totalMass = 0
-    local weightedPosition = Vector3.new(0, 0, 0)
+    -- Lock mouse to center and hide cursor
+    UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 
-    for _, part in ipairs(VehicleController.HovercraftParts) do
-        local mass = part:GetMass()
-        totalMass = totalMass + mass
-        weightedPosition = weightedPosition + (part.Position * mass)
-    end
-
-    return weightedPosition / totalMass
-end
-
--- Start controlling vehicle
-function VehicleController:StartControl(seat)
-    VehicleController.Active = true
-    VehicleController.CurrentSeat = seat
-
-    -- Disable jumping so Space key doesn't make player jump out
-    if humanoid then
-        humanoid.JumpPower = 0
-        humanoid.JumpHeight = 0
-    end
+    print("[JetController] Taking control of jet...")
 
     -- Find all parts
-    VehicleController.HovercraftParts, VehicleController.Thrusters, VehicleController.HoverPads =
-        VehicleController:FindHovercraftParts(seat)
+    JetController.JetParts, JetController.Engines, JetController.Wings, JetController.Weapons,
+        JetController.TotalThrust, JetController.MaxSpeed, JetController.Maneuverability =
+        JetController:FindJetParts(cockpit)
 
-    print("[VehicleController] Found", #VehicleController.HovercraftParts, "parts,",
-          #VehicleController.Thrusters, "thrusters,", #VehicleController.HoverPads, "hover pads")
+    print("[JetController] Found", #JetController.JetParts, "parts,",
+          #JetController.Engines, "engines,", #JetController.Wings, "wings,",
+          #JetController.Weapons, "weapons")
+    print("[JetController] Total thrust:", JetController.TotalThrust, "Max speed:", JetController.MaxSpeed)
 
     -- Unanchor all parts so they can move
-    for _, part in ipairs(VehicleController.HovercraftParts) do
+    for _, part in ipairs(JetController.JetParts) do
         part.Anchored = false
-        print("[VehicleController] Unanchored:", part.Name, "Anchored =", part.Anchored)
     end
-    print("[VehicleController] Finished unanchoring all hovercraft parts")
+    print("[JetController] Unanchored all jet parts")
 
-    -- Calculate total mass of vehicle for proper force
-    local totalMass = 0
-    for _, part in ipairs(VehicleController.HovercraftParts) do
-        totalMass = totalMass + part:GetMass()
-    end
-
-    print("[VehicleController] Total vehicle mass:", totalMass)
-    print("[VehicleController] Assembly root:", seat:GetRootPart())
-
-    -- Create BodyVelocity - this WILL work with welded parts
+    -- Create BodyVelocity for movement
     local bodyVel = Instance.new("BodyVelocity")
-    bodyVel.Name = "HovercraftBodyVelocity"
-    bodyVel.MaxForce = Vector3.new(math.huge, math.huge, math.huge)  -- Unlimited force
-    bodyVel.Velocity = Vector3.new(0, 20, 0)  -- Start with hover
+    bodyVel.Name = "JetBodyVelocity"
+    bodyVel.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bodyVel.Velocity = Vector3.new(0, 0, 0)
     bodyVel.P = 1250
-    bodyVel.Parent = seat
+    bodyVel.Parent = cockpit
 
-    -- Create BodyGyro for rotation
+    -- Create BodyGyro for rotation (mouse aiming)
     local bodyGyro = Instance.new("BodyGyro")
-    bodyGyro.Name = "HovercraftBodyGyro"
-    bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)  -- Unlimited torque
-    bodyGyro.P = 3000
-    bodyGyro.D = 500
-    bodyGyro.CFrame = seat.CFrame
-    bodyGyro.Parent = seat
+    bodyGyro.Name = "JetBodyGyro"
+    bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+    bodyGyro.P = 10000
+    bodyGyro.D = 1000
+    bodyGyro.CFrame = cockpit.CFrame
+    bodyGyro.Parent = cockpit
 
-    print("[VehicleController] Created BodyVelocity and BodyGyro with unlimited force")
-    print("[VehicleController] BodyVelocity.Velocity:", bodyVel.Velocity)
-    print("[VehicleController] BodyVelocity.MaxForce:", bodyVel.MaxForce)
-    print("[VehicleController] Seat.Anchored:", seat.Anchored)
+    print("[JetController] Physics created - Ready to fly!")
 
-    -- Activate thruster effects
-    for _, thruster in ipairs(VehicleController.Thrusters) do
-        local fire = thruster:FindFirstChild("ThrustEffect")
-        if fire then
-            fire.Enabled = true
-        end
+    -- Activate engine effects
+    for _, engine in ipairs(JetController.Engines) do
+        local fire = engine:FindFirstChild("EngineEffect")
+        local smoke = engine:FindFirstChild("EngineSmoke")
+        if fire then fire.Enabled = true end
+        if smoke then smoke.Enabled = true end
     end
+
+    -- Set camera to follow jet
+    camera.CameraSubject = cockpit
 end
 
--- Stop controlling vehicle
-function VehicleController:StopControl()
-    VehicleController.Active = false
+-- Stop controlling jet
+function JetController:StopControl()
+    JetController.Active = false
 
-    -- Re-enable jumping
-    if humanoid then
-        humanoid.JumpPower = 50
-        humanoid.JumpHeight = 7.2
+    -- Unlock mouse
+    UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+
+    -- Deactivate engine effects
+    for _, engine in ipairs(JetController.Engines) do
+        local fire = engine:FindFirstChild("EngineEffect")
+        local smoke = engine:FindFirstChild("EngineSmoke")
+        if fire then fire.Enabled = false end
+        if smoke then smoke.Enabled = false end
     end
 
-    -- Deactivate thruster effects
-    for _, thruster in ipairs(VehicleController.Thrusters) do
-        local fire = thruster:FindFirstChild("ThrustEffect")
-        if fire then
-            fire.Enabled = false
-        end
-    end
-
-    -- Remove BodyVelocity and BodyGyro
-    if VehicleController.CurrentSeat then
-        local bodyVel = VehicleController.CurrentSeat:FindFirstChild("HovercraftBodyVelocity")
-        local bodyGyro = VehicleController.CurrentSeat:FindFirstChild("HovercraftBodyGyro")
+    -- Remove physics
+    if JetController.CurrentCockpit then
+        local bodyVel = JetController.CurrentCockpit:FindFirstChild("JetBodyVelocity")
+        local bodyGyro = JetController.CurrentCockpit:FindFirstChild("JetBodyGyro")
         if bodyVel then bodyVel:Destroy() end
         if bodyGyro then bodyGyro:Destroy() end
     end
 
-    -- Re-anchor all parts so they don't fall
-    for _, part in ipairs(VehicleController.HovercraftParts) do
+    -- Re-anchor all parts
+    for _, part in ipairs(JetController.JetParts) do
         if part and part.Parent then
             part.Anchored = true
         end
     end
-    print("[VehicleController] Re-anchored all hovercraft parts")
+    print("[JetController] Re-anchored all jet parts")
 
-    VehicleController.CurrentSeat = nil
-    VehicleController.HovercraftParts = {}
-    VehicleController.Thrusters = {}
-    VehicleController.HoverPads = {}
+    -- Reset camera
+    if player.Character and player.Character:FindFirstChild("Humanoid") then
+        camera.CameraSubject = player.Character:FindFirstChild("Humanoid")
+    end
 
-    print("[VehicleController] Stopped control")
+    JetController.CurrentCockpit = nil
+    JetController.JetParts = {}
+    JetController.Engines = {}
+    JetController.Wings = {}
+    JetController.Weapons = {}
+
+    print("[JetController] Stopped control")
 end
 
--- Update vehicle physics
-local updateCounter = 0
-function VehicleController:Update()
-    if not VehicleController.Active or not VehicleController.CurrentSeat then
+-- Update jet physics (mouse-based flight)
+function JetController:Update(deltaTime)
+    if not JetController.Active or not JetController.CurrentCockpit then
         return
     end
 
-    local seat = VehicleController.CurrentSeat
-    local bodyVel = seat:FindFirstChild("HovercraftBodyVelocity")
-    local bodyGyro = seat:FindFirstChild("HovercraftBodyGyro")
+    local cockpit = JetController.CurrentCockpit
+    local bodyVel = cockpit:FindFirstChild("JetBodyVelocity")
+    local bodyGyro = cockpit:FindFirstChild("JetBodyGyro")
 
     if not bodyVel or not bodyGyro then
-        warn("[VehicleController] BodyVelocity or BodyGyro not found!")
+        warn("[JetController] Physics objects missing!")
         return
     end
 
-    -- Debug every 60 frames (about once per second)
-    updateCounter = updateCounter + 1
-    if updateCounter % 60 == 0 then
-        print("[VehicleController] Update - Seat.Anchored:", seat.Anchored, "Velocity:", seat.AssemblyLinearVelocity)
-    end
-
-    -- Calculate movement direction
-    local moveDirection = Vector3.new(0, 0, 0)
-
+    -- Update throttle
     if input.W then
-        moveDirection = moveDirection + seat.CFrame.LookVector
+        JetController.Throttle = math.min(1, JetController.Throttle + THROTTLE_SPEED * deltaTime)
     end
     if input.S then
-        moveDirection = moveDirection - seat.CFrame.LookVector
+        JetController.Throttle = math.max(0, JetController.Throttle - THROTTLE_SPEED * deltaTime)
     end
-    if input.A then
-        moveDirection = moveDirection - seat.CFrame.RightVector
-    end
-    if input.D then
-        moveDirection = moveDirection + seat.CFrame.RightVector
-    end
+
+    -- Calculate speed
+    local baseSpeed = JetController.MaxSpeed * JetController.Throttle
+    local speed = baseSpeed
+
+    -- Apply afterburner
     if input.Space then
-        moveDirection = moveDirection + Vector3.new(0, 1, 0)
-    end
-    if input.LeftShift then
-        moveDirection = moveDirection - Vector3.new(0, 1, 0)
+        speed = speed * AFTERBURNER_MULTIPLIER
     end
 
-    -- Calculate speed based on thrusters
-    local speed = BASE_SPEED
-    for _, thruster in ipairs(VehicleController.Thrusters) do
-        speed = speed + (thruster:GetAttribute("ThrustPower") or 0) * 0.05
+    -- Calculate velocity based on where cockpit is facing
+    local forwardVelocity = cockpit.CFrame.LookVector * speed
+
+    -- Add slight upward force for lift (based on wings)
+    local liftForce = 0
+    for _, wing in ipairs(JetController.Wings) do
+        liftForce = liftForce + (wing:GetAttribute("LiftPower") or 0)
+    end
+    local upwardVelocity = Vector3.new(0, liftForce * 0.1 * JetController.Throttle, 0)
+
+    bodyVel.Velocity = forwardVelocity + upwardVelocity
+
+    -- MOUSE AIMING: Point jet where mouse is looking
+    local mouseRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
+    local targetPosition = mouseRay.Origin + mouseRay.Direction * 100
+
+    -- Calculate target orientation
+    local targetCFrame = CFrame.lookAt(cockpit.Position, targetPosition)
+
+    -- Apply roll with A/D
+    local rollAngle = 0
+    if input.A then
+        rollAngle = math.rad(-ROLL_SPEED)
+    elseif input.D then
+        rollAngle = math.rad(ROLL_SPEED)
     end
 
-    -- Apply movement velocity - ALWAYS include upward velocity to hover
-    local targetVelocity = Vector3.new(0, 20, 0)  -- Base hover velocity
-
-    if moveDirection.Magnitude > 0 then
-        -- Add horizontal/vertical movement to hover velocity
-        local moveVelocity = moveDirection.Unit * speed
-        targetVelocity = targetVelocity + moveVelocity
+    if rollAngle ~= 0 then
+        targetCFrame = targetCFrame * CFrame.Angles(0, 0, rollAngle)
     end
 
-    bodyVel.Velocity = targetVelocity
+    -- Smoothly rotate to target (faster with better maneuverability)
+    local lerpSpeed = MOUSE_SENSITIVITY * JetController.Maneuverability
+    bodyGyro.CFrame = bodyGyro.CFrame:Lerp(targetCFrame, lerpSpeed)
+end
 
-    -- Apply rotation
-    if input.Q then
-        bodyGyro.CFrame = bodyGyro.CFrame * CFrame.Angles(0, math.rad(TURN_SPEED), 0)
-    elseif input.E then
-        bodyGyro.CFrame = bodyGyro.CFrame * CFrame.Angles(0, -math.rad(TURN_SPEED), 0)
-    else
-        -- Keep orientation stable
-        bodyGyro.CFrame = bodyGyro.CFrame:Lerp(seat.CFrame, 0.1)
+-- Fire weapons
+function JetController:FireWeapons()
+    if not JetController.Active then return end
+
+    for _, weapon in ipairs(JetController.Weapons) do
+        local weaponType = weapon:GetAttribute("WeaponType")
+        local muzzle = weapon:FindFirstChild("MuzzlePoint")
+
+        if muzzle and weaponType then
+            -- Fire weapon (will implement weapon system next)
+            print("[JetController] Firing", weaponType, "from", weapon.Name)
+            -- TODO: Implement actual shooting
+        end
     end
 end
 
@@ -273,61 +279,63 @@ UserInputService.InputBegan:Connect(function(inputObj, gameProcessed)
 
     if inputObj.KeyCode == Enum.KeyCode.W then
         input.W = true
-    elseif inputObj.KeyCode == Enum.KeyCode.A then
-        input.A = true
     elseif inputObj.KeyCode == Enum.KeyCode.S then
         input.S = true
+    elseif inputObj.KeyCode == Enum.KeyCode.A then
+        input.A = true
     elseif inputObj.KeyCode == Enum.KeyCode.D then
         input.D = true
     elseif inputObj.KeyCode == Enum.KeyCode.Space then
         input.Space = true
-    elseif inputObj.KeyCode == Enum.KeyCode.LeftShift then
-        input.LeftShift = true
-    elseif inputObj.KeyCode == Enum.KeyCode.Q then
-        input.Q = true
-    elseif inputObj.KeyCode == Enum.KeyCode.E then
-        input.E = true
+    elseif inputObj.UserInputType == Enum.UserInputType.MouseButton1 then
+        input.MouseHeld = true
+        if JetController.Active then
+            JetController:FireWeapons()
+        end
     end
 end)
 
 UserInputService.InputEnded:Connect(function(inputObj)
     if inputObj.KeyCode == Enum.KeyCode.W then
         input.W = false
-    elseif inputObj.KeyCode == Enum.KeyCode.A then
-        input.A = false
     elseif inputObj.KeyCode == Enum.KeyCode.S then
         input.S = false
+    elseif inputObj.KeyCode == Enum.KeyCode.A then
+        input.A = false
     elseif inputObj.KeyCode == Enum.KeyCode.D then
         input.D = false
     elseif inputObj.KeyCode == Enum.KeyCode.Space then
         input.Space = false
-    elseif inputObj.KeyCode == Enum.KeyCode.LeftShift then
-        input.LeftShift = false
-    elseif inputObj.KeyCode == Enum.KeyCode.Q then
-        input.Q = false
-    elseif inputObj.KeyCode == Enum.KeyCode.E then
-        input.E = false
+    elseif inputObj.UserInputType == Enum.UserInputType.MouseButton1 then
+        input.MouseHeld = false
     end
 end)
 
--- Detect seat sitting
-humanoid.Seated:Connect(function(isSeated, seat)
-    if isSeated and seat and seat:GetAttribute("IsHovercraftPart") then
-        VehicleController:StartControl(seat)
+-- Detect cockpit sitting
+player.Character:WaitForChild("Humanoid").Seated:Connect(function(isSeated, seat)
+    if isSeated and seat and seat:GetAttribute("IsCockpit") then
+        JetController:StartControl(seat)
     else
-        VehicleController:StopControl()
+        if JetController.Active then
+            JetController:StopControl()
+        end
     end
 end)
 
 -- Update loop
-RunService.Heartbeat:Connect(function()
-    VehicleController:Update()
+RunService.RenderStepped:Connect(function(deltaTime)
+    JetController:Update(deltaTime)
 end)
 
-print("[VehicleController] Initialized")
-print("[VehicleController] Controls: WASD=Move, Space/Shift=Up/Down, Q/E=Turn")
+print("[JetController] Initialized")
+print("[JetController] Controls:")
+print("  - Mouse: Aim jet")
+print("  - W/S: Throttle up/down")
+print("  - A/D: Roll left/right")
+print("  - Space: Afterburner")
+print("  - Click: Fire weapons")
 
 -- Export
-_G.VehicleController = VehicleController
+_G.JetController = JetController
 
-return VehicleController
+return JetController
