@@ -68,7 +68,7 @@ local COLORS = {
 -- Create main GUI
 function ShopGui:CreateMainGui()
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "ShopGui"
+    screenGui.Name = "HovercraftShopGui"  -- Changed from "ShopGui" to avoid conflict with Folder
     screenGui.ResetOnSpawn = false
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = playerGui
@@ -316,7 +316,7 @@ function ShopGui:SetCategory(category)
     ShopGui.CurrentCategory = category
 
     -- Update category button colors
-    local categoryFrame = playerGui.ShopGui.ShopFrame.CategoryFrame
+    local categoryFrame = playerGui.HovercraftShopGui.ShopFrame.CategoryFrame
     for _, button in ipairs(categoryFrame:GetChildren()) do
         if button:IsA("TextButton") then
             if button.Text == category then
@@ -333,7 +333,7 @@ end
 
 -- Refresh item list
 function ShopGui:RefreshItems()
-    local itemsFrame = playerGui.ShopGui.ShopFrame.ItemsFrame
+    local itemsFrame = playerGui.HovercraftShopGui.ShopFrame.ItemsFrame
 
     -- Clear existing items
     for _, child in ipairs(itemsFrame:GetChildren()) do
@@ -368,7 +368,7 @@ end
 
 -- Update coin display
 function ShopGui:UpdateCoins(amount)
-    local coinLabel = playerGui.ShopGui.ShopFrame.Header.CoinFrame.CoinLabel
+    local coinLabel = playerGui.HovercraftShopGui.ShopFrame.Header.CoinFrame.CoinLabel
     if coinLabel then
         coinLabel.Text = "💰 " .. tostring(amount)
     end
@@ -376,7 +376,7 @@ end
 
 -- Toggle shop visibility
 function ShopGui:Toggle()
-    local shopFrame = playerGui.ShopGui.ShopFrame
+    local shopFrame = playerGui.HovercraftShopGui.ShopFrame
     ShopGui.IsOpen = not ShopGui.IsOpen
     shopFrame.Visible = ShopGui.IsOpen
 
@@ -387,7 +387,7 @@ end
 
 -- Create shop button (to open shop)
 function ShopGui:CreateShopButton()
-    local screenGui = playerGui:WaitForChild("ShopGui")
+    local screenGui = playerGui:WaitForChild("HovercraftShopGui")
 
     local shopButton = Instance.new("TextButton")
     shopButton.Name = "OpenShopButton"

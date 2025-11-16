@@ -44,7 +44,7 @@ end
 -- Update UI elements
 function ShopController:UpdateUI()
     -- Update coin display in shop
-    local shopGui = playerGui:FindFirstChild("ShopGui")
+    local shopGui = playerGui:FindFirstChild("HovercraftShopGui")
     if shopGui and shopGui:FindFirstChild("ShopFrame") then
         local coinLabel = shopGui.ShopFrame.Header.CoinFrame.CoinLabel
         if coinLabel then
@@ -58,7 +58,7 @@ end
 
 -- Update buy buttons to show owned/not enough coins
 function ShopController:UpdateBuyButtons()
-    local shopGui = playerGui:FindFirstChild("ShopGui")
+    local shopGui = playerGui:FindFirstChild("HovercraftShopGui")
     if not shopGui or not shopGui:FindFirstChild("ShopFrame") then return end
 
     local itemsFrame = shopGui.ShopFrame.ItemsFrame
@@ -146,7 +146,7 @@ end
 
 -- Show notification to player
 function ShopController:ShowNotification(message, color)
-    local screenGui = playerGui:FindFirstChild("ShopGui")
+    local screenGui = playerGui:FindFirstChild("HovercraftShopGui")
     if not screenGui then return end
 
     -- Create notification
@@ -199,7 +199,7 @@ end
 
 -- Create inventory/build UI
 function ShopController:CreateInventoryUI()
-    local screenGui = playerGui:FindFirstChild("ShopGui")
+    local screenGui = playerGui:FindFirstChild("HovercraftShopGui")
     if not screenGui then return end
 
     local inventoryButton = Instance.new("TextButton")
@@ -225,7 +225,7 @@ end
 
 -- Open build menu (spawn owned items)
 function ShopController:OpenBuildMenu()
-    local screenGui = playerGui:FindFirstChild("ShopGui")
+    local screenGui = playerGui:FindFirstChild("HovercraftShopGui")
     if not screenGui then return end
 
     -- Check if already open
@@ -344,7 +344,7 @@ function ShopController:SetupInput()
 
         -- Press S to toggle shop
         if input.KeyCode == Enum.KeyCode.S then
-            local shopGui = playerGui:FindFirstChild("ShopGui")
+            local shopGui = playerGui:FindFirstChild("HovercraftShopGui")
             if shopGui and shopGui:FindFirstChild("ShopFrame") then
                 local shopFrame = shopGui.ShopFrame
                 shopFrame.Visible = not shopFrame.Visible
