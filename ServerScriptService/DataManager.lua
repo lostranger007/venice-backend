@@ -9,11 +9,16 @@ local Players = game:GetService("Players")
 
 local DataManager = {}
 local playerData = {}
-local PlayerDataStore = DataStoreService:GetDataStore("HovercraftPlayerData_v1")
+local PlayerDataStore = DataStoreService:GetDataStore("JetFighterPlayerData_v1")
 
 local DEFAULT_DATA = {
-    Coins = 1000000,  -- Start with 1 million coins
-    OwnedItems = {"Wooden Block"}
+    Coins = 10000,  -- Start with 10,000 coins
+    OwnedItems = {
+        "Basic Cockpit",
+        "Standard Wing",
+        "Basic Engine",
+        "Fuselage Block"
+    }
 }
 
 function DataManager:GetData(player)

@@ -1,52 +1,216 @@
 --[[
-    ShopCatalog.lua
-    Contains all shop items and categories
+    JetPartsCatalog.lua
+    Catalog of all jet parts available in the shop
     Location: ReplicatedStorage > Modules > ShopCatalog (ModuleScript)
 ]]
 
 local ShopCatalog = {}
 
+-- Categories of parts
 ShopCatalog.Categories = {
-    "Blocks",
-    "Thrusters",
+    "Cockpits",
     "Wings",
-    "Decorations",
-    "Special"
+    "Engines",
+    "Weapons",
+    "Body Parts"
 }
 
+-- All available jet parts
 ShopCatalog.Items = {
-    -- BLOCKS
-    {Name = "Wooden Block", Price = 0, Category = "Blocks", Description = "Basic wooden block. Free!", BlockType = "WoodBlock", Color = Color3.fromRGB(153, 102, 51), Size = Vector3.new(4, 4, 4)},
-    {Name = "Stone Block", Price = 50, Category = "Blocks", Description = "Stronger than wood", BlockType = "StoneBlock", Color = Color3.fromRGB(128, 128, 128), Size = Vector3.new(4, 4, 4)},
-    {Name = "Metal Block", Price = 150, Category = "Blocks", Description = "Very durable", BlockType = "MetalBlock", Color = Color3.fromRGB(192, 192, 192), Size = Vector3.new(4, 4, 4)},
-    {Name = "Light Block", Price = 100, Category = "Blocks", Description = "Lightweight", BlockType = "LightBlock", Color = Color3.fromRGB(173, 216, 230), Size = Vector3.new(4, 4, 4)},
-    {Name = "Glass Block", Price = 200, Category = "Blocks", Description = "Transparent", BlockType = "GlassBlock", Color = Color3.fromRGB(200, 240, 255), Size = Vector3.new(4, 4, 4), Transparency = 0.5},
-
-    -- THRUSTERS
-    {Name = "Small Thruster", Price = 100, Category = "Thrusters", Description = "Basic propulsion", BlockType = "SmallThruster", Color = Color3.fromRGB(255, 100, 100), Size = Vector3.new(2, 2, 3), ThrustPower = 500},
-    {Name = "Medium Thruster", Price = 300, Category = "Thrusters", Description = "More power", BlockType = "MediumThruster", Color = Color3.fromRGB(255, 50, 50), Size = Vector3.new(3, 3, 4), ThrustPower = 1500},
-    {Name = "Large Thruster", Price = 600, Category = "Thrusters", Description = "Maximum power!", BlockType = "LargeThruster", Color = Color3.fromRGB(255, 0, 0), Size = Vector3.new(4, 4, 5), ThrustPower = 3000},
-    {Name = "Hover Pad", Price = 250, Category = "Thrusters", Description = "Keeps you floating", BlockType = "HoverPad", Color = Color3.fromRGB(100, 100, 255), Size = Vector3.new(4, 1, 4), HoverForce = 800},
+    -- COCKPITS
+    {
+        Name = "Basic Cockpit",
+        Price = 0,
+        Category = "Cockpits",
+        Description = "Standard fighter cockpit",
+        BlockType = "Cockpit",
+        Size = Vector3.new(4, 2, 6),
+        Color = Color3.fromRGB(100, 100, 100),
+        IsCockpit = true,
+        Health = 100
+    },
+    {
+        Name = "Advanced Cockpit",
+        Price = 5000,
+        Category = "Cockpits",
+        Description = "Reinforced cockpit with better durability",
+        BlockType = "Cockpit",
+        Size = Vector3.new(4, 2, 6),
+        Color = Color3.fromRGB(50, 50, 70),
+        IsCockpit = true,
+        Health = 200
+    },
+    {
+        Name = "Stealth Cockpit",
+        Price = 15000,
+        Category = "Cockpits",
+        Description = "Lightweight stealth cockpit",
+        BlockType = "Cockpit",
+        Size = Vector3.new(4, 2, 5),
+        Color = Color3.fromRGB(30, 30, 30),
+        IsCockpit = true,
+        Health = 150,
+        Transparency = 0.3
+    },
 
     -- WINGS
-    {Name = "Small Wing", Price = 150, Category = "Wings", Description = "Improves stability", BlockType = "SmallWing", Color = Color3.fromRGB(255, 255, 255), Size = Vector3.new(6, 0.5, 2)},
-    {Name = "Large Wing", Price = 350, Category = "Wings", Description = "Better aerodynamics", BlockType = "LargeWing", Color = Color3.fromRGB(240, 240, 240), Size = Vector3.new(10, 0.5, 3)},
+    {
+        Name = "Standard Wing",
+        Price = 0,
+        Category = "Wings",
+        Description = "Basic wing for stability",
+        BlockType = "Wing",
+        Size = Vector3.new(12, 0.5, 4),
+        Color = Color3.fromRGB(200, 200, 200),
+        Maneuverability = 1.0,
+        LiftPower = 50
+    },
+    {
+        Name = "Delta Wing",
+        Price = 3000,
+        Category = "Wings",
+        Description = "High-speed delta wing",
+        BlockType = "Wing",
+        Size = Vector3.new(10, 0.5, 6),
+        Color = Color3.fromRGB(180, 180, 180),
+        Maneuverability = 1.3,
+        LiftPower = 70
+    },
+    {
+        Name = "Swept Wing",
+        Price = 8000,
+        Category = "Wings",
+        Description = "Agile swept wing design",
+        BlockType = "Wing",
+        Size = Vector3.new(14, 0.5, 3),
+        Color = Color3.fromRGB(160, 160, 160),
+        Maneuverability = 1.8,
+        LiftPower = 60
+    },
 
-    -- DECORATIONS
-    {Name = "Red Paint", Price = 50, Category = "Decorations", Description = "Paint blocks red", BlockType = "PaintRed", Color = Color3.fromRGB(255, 0, 0), Size = Vector3.new(2, 2, 2)},
-    {Name = "Blue Paint", Price = 50, Category = "Decorations", Description = "Paint blocks blue", BlockType = "PaintBlue", Color = Color3.fromRGB(0, 0, 255), Size = Vector3.new(2, 2, 2)},
-    {Name = "Flag", Price = 100, Category = "Decorations", Description = "Show your colors!", BlockType = "Flag", Color = Color3.fromRGB(255, 255, 0), Size = Vector3.new(0.2, 4, 2)},
-    {Name = "Pilot Seat", Price = 200, Category = "Decorations", Description = "Control your hovercraft", BlockType = "Seat", Color = Color3.fromRGB(80, 50, 30), Size = Vector3.new(4, 2, 4)},
+    -- ENGINES
+    {
+        Name = "Basic Engine",
+        Price = 0,
+        Category = "Engines",
+        Description = "Standard jet engine",
+        BlockType = "Engine",
+        Size = Vector3.new(3, 3, 4),
+        Color = Color3.fromRGB(150, 75, 0),
+        ThrustPower = 500,
+        MaxSpeed = 100
+    },
+    {
+        Name = "Turbo Engine",
+        Price = 4000,
+        Category = "Engines",
+        Description = "High-thrust turbine engine",
+        BlockType = "Engine",
+        Size = Vector3.new(3, 3, 5),
+        Color = Color3.fromRGB(200, 100, 0),
+        ThrustPower = 1000,
+        MaxSpeed = 150
+    },
+    {
+        Name = "Afterburner Engine",
+        Price = 12000,
+        Category = "Engines",
+        Description = "Extreme speed afterburner",
+        BlockType = "Engine",
+        Size = Vector3.new(4, 4, 6),
+        Color = Color3.fromRGB(255, 50, 0),
+        ThrustPower = 2000,
+        MaxSpeed = 250
+    },
 
-    -- SPECIAL
-    {Name = "Rocket Booster", Price = 1000, Category = "Special", Description = "EXTREME SPEED!", BlockType = "RocketBooster", Color = Color3.fromRGB(255, 165, 0), Size = Vector3.new(3, 3, 6), ThrustPower = 5000},
-    {Name = "Shield Generator", Price = 1500, Category = "Special", Description = "Protects your craft", BlockType = "Shield", Color = Color3.fromRGB(0, 255, 255), Size = Vector3.new(3, 3, 3)},
-    {Name = "Treasure Detector", Price = 800, Category = "Special", Description = "Find treasure easier", BlockType = "Detector", Color = Color3.fromRGB(255, 215, 0), Size = Vector3.new(2, 3, 2)}
+    -- WEAPONS
+    {
+        Name = "Machine Gun",
+        Price = 2000,
+        Category = "Weapons",
+        Description = "Rapid-fire machine gun",
+        BlockType = "Weapon",
+        Size = Vector3.new(1, 1, 4),
+        Color = Color3.fromRGB(50, 50, 50),
+        WeaponType = "Gun",
+        Damage = 10,
+        FireRate = 0.1,
+        Range = 500
+    },
+    {
+        Name = "Missile Launcher",
+        Price = 8000,
+        Category = "Weapons",
+        Description = "Homing missile launcher",
+        BlockType = "Weapon",
+        Size = Vector3.new(2, 1, 3),
+        Color = Color3.fromRGB(100, 50, 50),
+        WeaponType = "Missile",
+        Damage = 50,
+        FireRate = 2.0,
+        Range = 1000,
+        MissileSpeed = 200
+    },
+    {
+        Name = "Cannon",
+        Price = 5000,
+        Category = "Weapons",
+        Description = "Heavy cannon - slow but powerful",
+        BlockType = "Weapon",
+        Size = Vector3.new(2, 2, 5),
+        Color = Color3.fromRGB(80, 80, 80),
+        WeaponType = "Cannon",
+        Damage = 35,
+        FireRate = 0.5,
+        Range = 600
+    },
+
+    -- BODY PARTS
+    {
+        Name = "Fuselage Block",
+        Price = 0,
+        Category = "Body Parts",
+        Description = "Basic body block",
+        BlockType = "Body",
+        Size = Vector3.new(4, 3, 6),
+        Color = Color3.fromRGB(180, 180, 180)
+    },
+    {
+        Name = "Tail Fin",
+        Price = 500,
+        Category = "Body Parts",
+        Description = "Vertical stabilizer",
+        BlockType = "TailFin",
+        Size = Vector3.new(0.5, 4, 3),
+        Color = Color3.fromRGB(200, 200, 200),
+        Stability = 1.5
+    },
+    {
+        Name = "Nose Cone",
+        Price = 800,
+        Category = "Body Parts",
+        Description = "Aerodynamic nose cone",
+        BlockType = "Nose",
+        Size = Vector3.new(3, 2, 4),
+        Color = Color3.fromRGB(220, 220, 220),
+        SpeedBonus = 10
+    },
+    {
+        Name = "Armor Plate",
+        Price = 3000,
+        Category = "Body Parts",
+        Description = "Heavy armor plating",
+        BlockType = "Armor",
+        Size = Vector3.new(4, 3, 4),
+        Color = Color3.fromRGB(100, 100, 120),
+        ArmorBonus = 50
+    }
 }
 
+-- Get all items in a specific category
 function ShopCatalog:GetItemsByCategory(category)
     local items = {}
-    for _, item in ipairs(self.Items) do
+    for _, item in ipairs(ShopCatalog.Items) do
         if item.Category == category then
             table.insert(items, item)
         end
@@ -54,8 +218,9 @@ function ShopCatalog:GetItemsByCategory(category)
     return items
 end
 
+-- Get a specific item by name
 function ShopCatalog:GetItem(itemName)
-    for _, item in ipairs(self.Items) do
+    for _, item in ipairs(ShopCatalog.Items) do
         if item.Name == itemName then
             return item
         end

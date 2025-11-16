@@ -1,6 +1,6 @@
 --[[
     ShopSystem.lua
-    Main shop server logic
+    Main shop server logic for jet parts
     Location: ServerScriptService > ShopSystem (Script - NOT LocalScript!)
 ]]
 
@@ -14,30 +14,30 @@ local DataManager = require(ServerScriptService:WaitForChild("DataManager"))
 -- Initialize DataManager first
 DataManager:Init()
 
--- Create a block
+-- Create a jet part
 local function createBlock(itemData, player)
     local block
 
-    -- Create VehicleSeat for pilot seats
-    if itemData.BlockType == "Seat" then
+    -- Create VehicleSeat for cockpits
+    if itemData.IsCockpit then
         block = Instance.new("VehicleSeat")
-        block.Name = "PilotSeat"
+        block.Name = "Cockpit"
         block.Size = itemData.Size
         block.Color = itemData.Color
         block.TopSurface = Enum.SurfaceType.Smooth
         block.BottomSurface = Enum.SurfaceType.Smooth
-        block.Anchored = true  -- Anchored so it doesn't fall
+        block.Anchored = true
         block.CanCollide = true
     else
         -- Regular part for everything else
         block = Instance.new("Part")
-        block.Name = itemData.BlockType
+        block.Name = itemData.Name
         block.Size = itemData.Size
         block.Color = itemData.Color
         block.Material = Enum.Material.SmoothPlastic
         block.TopSurface = Enum.SurfaceType.Smooth
         block.BottomSurface = Enum.SurfaceType.Smooth
-        block.Anchored = true  -- Anchored so it doesn't fall
+        block.Anchored = true
         block.CanCollide = true
     end
 
@@ -45,29 +45,75 @@ local function createBlock(itemData, player)
         block.Transparency = itemData.Transparency
     end
 
-    -- Mark as hovercraft part
-    block:SetAttribute("IsHovercraftPart", true)
+    -- Mark as jet part
+    block:SetAttribute("IsJetPart", true)
     block:SetAttribute("Owner", player.UserId)
+    block:SetAttribute("PartType", itemData.BlockType)
 
-    -- Add thruster effects and attributes
-    if itemData.Category == "Thrusters" then
-        if itemData.ThrustPower then
-            block:SetAttribute("ThrustPower", itemData.ThrustPower)
+    -- Add cockpit attributes
+    if itemData.IsCockpit then
+        block:SetAttribute("IsCockpit", true)
+        block:SetAttribute("Health", itemData.Health or 100)
+    end
 
-            -- Add fire effect
-            local fire = Instance.new("Fire")
-            fire.Name = "ThrustEffect"
-            fire.Size = 5
-            fire.Heat = 10
-            fire.Color = Color3.fromRGB(255, 100, 0)
-            fire.SecondaryColor = Color3.fromRGB(255, 200, 0)
-            fire.Enabled = false
-            fire.Parent = block
+    -- Add engine attributes and effects
+    if itemData.Category == "Engines" then
+        block:SetAttribute("ThrustPower", itemData.ThrustPower)
+        block:SetAttribute("MaxSpeed", itemData.MaxSpeed)
+
+        -- Add engine fire effect
+        local fire = Instance.new("Fire")
+        fire.Name = "EngineEffect"
+        fire.Size = 8
+        fire.Heat = 15
+        fire.Color = Color3.fromRGB(255, 150, 0)
+        fire.SecondaryColor = Color3.fromRGB(100, 150, 255)
+        fire.Enabled = false
+        fire.Parent = block
+
+        -- Add smoke effect
+        local smoke = Instance.new("Smoke")
+        smoke.Name = "EngineSmoke"
+        smoke.Size = 3
+        smoke.RiseVelocity = -5
+        smoke.Color = Color3.fromRGB(100, 100, 100)
+        smoke.Opacity = 0.3
+        smoke.Enabled = false
+        smoke.Parent = block
+    end
+
+    -- Add wing attributes
+    if itemData.Category == "Wings" then
+        block:SetAttribute("Maneuverability", itemData.Maneuverability or 1.0)
+        block:SetAttribute("LiftPower", itemData.LiftPower or 50)
+    end
+
+    -- Add weapon attributes
+    if itemData.Category == "Weapons" then
+        block:SetAttribute("WeaponType", itemData.WeaponType)
+        block:SetAttribute("Damage", itemData.Damage)
+        block:SetAttribute("FireRate", itemData.FireRate)
+        block:SetAttribute("Range", itemData.Range)
+        if itemData.MissileSpeed then
+            block:SetAttribute("MissileSpeed", itemData.MissileSpeed)
         end
 
-        if itemData.HoverForce then
-            block:SetAttribute("HoverForce", itemData.HoverForce)
-        end
+        -- Add muzzle attachment for weapons
+        local attachment = Instance.new("Attachment")
+        attachment.Name = "MuzzlePoint"
+        attachment.Position = Vector3.new(0, 0, -itemData.Size.Z/2)
+        attachment.Parent = block
+    end
+
+    -- Add body part attributes
+    if itemData.Stability then
+        block:SetAttribute("Stability", itemData.Stability)
+    end
+    if itemData.SpeedBonus then
+        block:SetAttribute("SpeedBonus", itemData.SpeedBonus)
+    end
+    if itemData.ArmorBonus then
+        block:SetAttribute("ArmorBonus", itemData.ArmorBonus)
     end
 
     return block
