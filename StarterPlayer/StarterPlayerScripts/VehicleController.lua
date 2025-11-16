@@ -112,22 +112,23 @@ function VehicleController:StartControl(seat)
     end
     print("[VehicleController] Unanchored all hovercraft parts")
 
-    -- Create BodyVelocity and BodyGyro on seat
-    if not seat:FindFirstChild("BodyVelocity") then
-        local bodyVel = Instance.new("BodyVelocity")
-        bodyVel.Name = "BodyVelocity"
-        bodyVel.MaxForce = Vector3.new(100000, 100000, 100000)  -- High force to move the vehicle
-        bodyVel.Velocity = Vector3.new(0, 0, 0)
-        bodyVel.P = 1250  -- Power for reaching target velocity
-        bodyVel.Parent = seat
+    -- Create BodyThrust for movement (applies force, not velocity)
+    if not seat:FindFirstChild("BodyThrust") then
+        local bodyThrust = Instance.new("BodyThrust")
+        bodyThrust.Name = "BodyThrust"
+        bodyThrust.Force = Vector3.new(0, 0, 0)
+        bodyThrust.Location = seat.Position
+        bodyThrust.Parent = seat
     end
 
+    -- Create BodyGyro for rotation
     if not seat:FindFirstChild("BodyGyro") then
         local bodyGyro = Instance.new("BodyGyro")
         bodyGyro.Name = "BodyGyro"
-        bodyGyro.MaxTorque = Vector3.new(50000, 50000, 50000)  -- High torque for rotation
-        bodyGyro.P = 10000  -- Power
-        bodyGyro.D = 1000  -- Dampening
+        bodyGyro.MaxTorque = Vector3.new(50000, 50000, 50000)
+        bodyGyro.P = 10000
+        bodyGyro.D = 1000
+        bodyGyro.CFrame = seat.CFrame
         bodyGyro.Parent = seat
     end
 
@@ -168,9 +169,9 @@ function VehicleController:StopControl()
 
     -- Remove forces
     if VehicleController.CurrentSeat then
-        local bodyVel = VehicleController.CurrentSeat:FindFirstChild("BodyVelocity")
+        local bodyThrust = VehicleController.CurrentSeat:FindFirstChild("BodyThrust")
         local bodyGyro = VehicleController.CurrentSeat:FindFirstChild("BodyGyro")
-        if bodyVel then bodyVel:Destroy() end
+        if bodyThrust then bodyThrust:Destroy() end
         if bodyGyro then bodyGyro:Destroy() end
     end
 
@@ -189,14 +190,14 @@ function VehicleController:Update()
     end
 
     local seat = VehicleController.CurrentSeat
-    local bodyVel = seat:FindFirstChild("BodyVelocity")
+    local bodyThrust = seat:FindFirstChild("BodyThrust")
     local bodyGyro = seat:FindFirstChild("BodyGyro")
 
-    if not bodyVel or not bodyGyro then
+    if not bodyThrust or not bodyGyro then
         return
     end
 
-    -- Calculate thrust
+    -- Calculate thrust direction
     local thrustDirection = Vector3.new(0, 0, 0)
 
     if input.W then
@@ -218,39 +219,40 @@ function VehicleController:Update()
         thrustDirection = thrustDirection - Vector3.new(0, 1, 0)
     end
 
-    -- Calculate total thrust power (with base speed)
-    local totalThrust = BASE_SPEED  -- Start with base speed
+    -- Calculate total thrust power
+    local totalThrust = 5000  -- Base thrust force
     for _, thruster in ipairs(VehicleController.Thrusters) do
-        totalThrust = totalThrust + (thruster:GetAttribute("ThrustPower") or 0) * THRUST_MULTIPLIER
+        totalThrust = totalThrust + (thruster:GetAttribute("ThrustPower") or 0) * 100
     end
 
-    -- Apply thrust
-    local targetVelocity = Vector3.new(0, 0, 0)
+    -- Calculate total mass of vehicle
+    local totalMass = 0
+    for _, part in ipairs(VehicleController.HovercraftParts) do
+        totalMass = totalMass + part:GetMass()
+    end
+
+    -- Apply thrust force
+    local thrustForce = Vector3.new(0, 0, 0)
     if thrustDirection.Magnitude > 0 then
-        targetVelocity = thrustDirection.Unit * totalThrust
+        thrustForce = thrustDirection.Unit * totalThrust
     end
 
-    -- Apply hover force - always push upward slightly
-    local hoverVelocity = 20  -- Default upward velocity
+    -- Add hover force to counteract gravity
+    local gravityForce = totalMass * 196.2  -- Roblox gravity
+    local hoverForce = gravityForce * 1.2  -- 20% extra lift
+    thrustForce = thrustForce + Vector3.new(0, hoverForce, 0)
 
-    bodyVel.Velocity = targetVelocity + Vector3.new(0, hoverVelocity, 0)
-
-    -- Limit speed
-    if bodyVel.Velocity.Magnitude > MAX_SPEED then
-        bodyVel.Velocity = bodyVel.Velocity.Unit * MAX_SPEED
-    end
+    bodyThrust.Force = thrustForce
+    bodyThrust.Location = seat.Position
 
     -- Apply rotation
     if input.Q then
         bodyGyro.CFrame = bodyGyro.CFrame * CFrame.Angles(0, math.rad(TURN_SPEED), 0)
-    end
-    if input.E then
+    elseif input.E then
         bodyGyro.CFrame = bodyGyro.CFrame * CFrame.Angles(0, -math.rad(TURN_SPEED), 0)
-    end
-
-    -- Keep gyro updated with seat orientation
-    if not input.Q and not input.E then
-        bodyGyro.CFrame = seat.CFrame
+    else
+        -- Gradually return to seat orientation
+        bodyGyro.CFrame = bodyGyro.CFrame:Lerp(seat.CFrame, 0.1)
     end
 end
 
