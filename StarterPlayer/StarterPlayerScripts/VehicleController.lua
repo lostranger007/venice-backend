@@ -114,12 +114,24 @@ function JetController:StartControl(cockpit)
           #JetController.Weapons, "weapons")
     print("[JetController] Total thrust:", JetController.TotalThrust, "Max speed:", JetController.MaxSpeed)
 
-    -- Unanchor all parts so they can move
+    -- Unanchor all parts and disable collision so they can move freely
     for _, part in ipairs(JetController.JetParts) do
         part.Anchored = false
-        print("[JetController] Unanchored:", part.Name, "IsAnchored:", part.Anchored)
+        part.CanCollide = false  -- Disable collision to prevent parts from fighting each other
+        print("[JetController] Unanchored:", part.Name, "IsAnchored:", part.Anchored, "CanCollide:", part.CanCollide)
     end
     print("[JetController] Finished unanchoring all jet parts")
+
+    -- Check for welds
+    local weldCount = 0
+    for _, part in ipairs(JetController.JetParts) do
+        for _, child in ipairs(part:GetChildren()) do
+            if child:IsA("WeldConstraint") then
+                weldCount = weldCount + 1
+            end
+        end
+    end
+    print("[JetController] Found", weldCount, "WeldConstraints connecting parts")
 
     -- Create BodyVelocity for movement
     local bodyVel = Instance.new("BodyVelocity")
@@ -178,10 +190,11 @@ function JetController:StopControl()
         if bodyGyro then bodyGyro:Destroy() end
     end
 
-    -- Re-anchor all parts
+    -- Re-anchor all parts and re-enable collision
     for _, part in ipairs(JetController.JetParts) do
         if part and part.Parent then
             part.Anchored = true
+            part.CanCollide = true
         end
     end
     print("[JetController] Re-anchored all jet parts")
@@ -220,7 +233,12 @@ function JetController:Update(deltaTime)
     debugCounter = debugCounter + 1
     if debugCounter >= 60 then
         debugCounter = 0
-        print("[JetController] Update - Throttle:", JetController.Throttle, "Speed:", bodyVel.Velocity.Magnitude, "Anchored:", cockpit.Anchored)
+        print("[JetController] Update - Throttle:", JetController.Throttle)
+        print("  INTENDED Velocity:", bodyVel.Velocity.Magnitude)
+        print("  ACTUAL Velocity:", cockpit.AssemblyLinearVelocity.Magnitude)
+        print("  Anchored:", cockpit.Anchored)
+        print("  CanCollide:", cockpit.CanCollide)
+        print("  Position:", cockpit.Position)
     end
 
     -- Update throttle
