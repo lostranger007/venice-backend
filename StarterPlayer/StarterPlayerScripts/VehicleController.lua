@@ -34,10 +34,11 @@ local input = {
 }
 
 -- Settings
-local THRUST_MULTIPLIER = 2
+local BASE_SPEED = 50  -- Base movement speed even without thrusters
+local THRUST_MULTIPLIER = 5  -- Multiplier for thruster power
 local HOVER_MULTIPLIER = 1.5
-local TURN_SPEED = 1
-local MAX_SPEED = 100
+local TURN_SPEED = 2
+local MAX_SPEED = 150
 local HOVER_HEIGHT = 10
 
 -- Find all connected parts
@@ -109,17 +110,18 @@ function VehicleController:StartControl(seat)
     if not seat:FindFirstChild("BodyVelocity") then
         local bodyVel = Instance.new("BodyVelocity")
         bodyVel.Name = "BodyVelocity"
-        bodyVel.MaxForce = Vector3.new(4000, 4000, 4000)
+        bodyVel.MaxForce = Vector3.new(100000, 100000, 100000)  -- High force to move the vehicle
         bodyVel.Velocity = Vector3.new(0, 0, 0)
+        bodyVel.P = 1250  -- Power for reaching target velocity
         bodyVel.Parent = seat
     end
 
     if not seat:FindFirstChild("BodyGyro") then
         local bodyGyro = Instance.new("BodyGyro")
         bodyGyro.Name = "BodyGyro"
-        bodyGyro.MaxTorque = Vector3.new(4000, 4000, 4000)
-        bodyGyro.P = 3000
-        bodyGyro.D = 500
+        bodyGyro.MaxTorque = Vector3.new(50000, 50000, 50000)  -- High torque for rotation
+        bodyGyro.P = 10000  -- Power
+        bodyGyro.D = 1000  -- Dampening
         bodyGyro.Parent = seat
     end
 
@@ -204,30 +206,22 @@ function VehicleController:Update()
         thrustDirection = thrustDirection - Vector3.new(0, 1, 0)
     end
 
-    -- Calculate total thrust power
-    local totalThrust = 0
+    -- Calculate total thrust power (with base speed)
+    local totalThrust = BASE_SPEED  -- Start with base speed
     for _, thruster in ipairs(VehicleController.Thrusters) do
-        totalThrust = totalThrust + (thruster:GetAttribute("ThrustPower") or 0)
+        totalThrust = totalThrust + (thruster:GetAttribute("ThrustPower") or 0) * THRUST_MULTIPLIER
     end
 
     -- Apply thrust
-    local thrustForce = thrustDirection.Unit * totalThrust * THRUST_MULTIPLIER
+    local targetVelocity = Vector3.new(0, 0, 0)
     if thrustDirection.Magnitude > 0 then
-        bodyVel.Velocity = thrustForce
-    else
-        bodyVel.Velocity = Vector3.new(0, 0, 0)
+        targetVelocity = thrustDirection.Unit * totalThrust
     end
 
-    -- Apply hover force
-    local totalHover = 0
-    for _, pad in ipairs(VehicleController.HoverPads) do
-        totalHover = totalHover + (pad:GetAttribute("HoverForce") or 800)
-    end
+    -- Apply hover force - always push upward slightly
+    local hoverVelocity = 20  -- Default upward velocity
 
-    -- Keep hovercraft at hover height
-    local centerOfMass = VehicleController:GetCenterOfMass()
-    local hoverForce = (HOVER_HEIGHT - centerOfMass.Y) * totalHover * HOVER_MULTIPLIER
-    bodyVel.Velocity = bodyVel.Velocity + Vector3.new(0, hoverForce, 0)
+    bodyVel.Velocity = targetVelocity + Vector3.new(0, hoverVelocity, 0)
 
     -- Limit speed
     if bodyVel.Velocity.Magnitude > MAX_SPEED then
