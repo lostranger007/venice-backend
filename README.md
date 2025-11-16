@@ -2,6 +2,28 @@
 
 A Roblox game inspired by "Build a Boat for Treasure" where players build hovercrafts to collect treasure!
 
+## 🚨 GUI Not Showing Up? Start Here!
+
+If the shop GUI doesn't appear when you test:
+
+1. **Quick Test**: Use `SIMPLE_SHOP_TEST.lua` first
+   - Create a LocalScript in StarterGui
+   - Copy the contents of `SIMPLE_SHOP_TEST.lua` into it
+   - Press Play - you should see a green button
+   - If you do, your GUI works! Continue with full installation.
+
+2. **Verify Setup**: Use `SETUP_VERIFICATION.lua`
+   - Create a LocalScript in StarterPlayer > StarterPlayerScripts
+   - Copy the contents of `SETUP_VERIFICATION.lua` into it
+   - Check Output window (F9) for detailed diagnostics
+
+3. **Read Troubleshooting**: See `TROUBLESHOOTING.md` for detailed help
+
+**Most Common Issue**: Making sure scripts are the correct type:
+- `ShopGui.lua` must be a **LocalScript** (not Script)
+- `ShopController.lua` must be a **LocalScript** (not Script)
+- `ShopSystem.lua` must be a **Script** (not LocalScript)
+
 ## Features
 
 - **Shop System**: Buy parts to build your hovercraft

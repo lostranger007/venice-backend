@@ -4,15 +4,49 @@
     Place in: StarterGui > ShopGui (as a LocalScript)
 ]]
 
+print("=== ShopGui Starting ===")
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+print("Player found:", player.Name)
 
--- Wait for modules
-local ShopCatalog = require(ReplicatedStorage:WaitForChild("Modules"):WaitForChild("ShopCatalog"))
+local playerGui = player:WaitForChild("PlayerGui", 10)
+if not playerGui then
+    warn("PlayerGui not found!")
+    return
+end
+print("PlayerGui found")
+
+-- Wait for modules with error handling
+print("Waiting for ReplicatedStorage.Modules.ShopCatalog...")
+local modulesFolder = ReplicatedStorage:WaitForChild("Modules", 10)
+if not modulesFolder then
+    warn("Modules folder not found in ReplicatedStorage!")
+    warn("Make sure you created a Folder named 'Modules' in ReplicatedStorage")
+    return
+end
+
+local catalogModule = modulesFolder:WaitForChild("ShopCatalog", 10)
+if not catalogModule then
+    warn("ShopCatalog module not found in Modules folder!")
+    warn("Make sure you created a ModuleScript named 'ShopCatalog' in the Modules folder")
+    return
+end
+
+local ShopCatalog
+local success, err = pcall(function()
+    ShopCatalog = require(catalogModule)
+end)
+
+if not success then
+    warn("Failed to load ShopCatalog:", err)
+    return
+end
+
+print("ShopCatalog loaded successfully!")
 
 local ShopGui = {}
 ShopGui.IsOpen = false
@@ -386,30 +420,51 @@ end
 
 -- Initialize
 function ShopGui:Init()
+    print("Initializing ShopGui...")
+
+    -- Create main GUI
+    print("Creating main GUI...")
     local screenGui = ShopGui:CreateMainGui()
+    print("ScreenGui created:", screenGui.Name)
+
     local categoryFrame = screenGui.ShopFrame.CategoryFrame
+    print("CategoryFrame found")
 
     -- Create category buttons
+    print("Creating category buttons...")
     for _, category in ipairs(ShopCatalog.Categories) do
         ShopGui:CreateCategoryButton(category, categoryFrame)
+        print("  - Created button for:", category)
     end
 
     -- Set initial category
+    print("Setting initial category...")
     ShopGui:SetCategory("Blocks")
 
     -- Create shop open button
+    print("Creating shop open button...")
     ShopGui:CreateShopButton()
+    print("Shop button created!")
 
     -- Close button functionality
     local closeButton = screenGui.ShopFrame.Header.CloseButton
     closeButton.MouseButton1Click:Connect(function()
+        print("Close button clicked")
         ShopGui:Toggle()
     end)
 
-    print("ShopGui initialized")
+    print("=== ShopGui initialized successfully! ===")
+    print("You should see a green 'SHOP' button in the bottom-left corner!")
 end
 
 -- Auto-initialize when script runs
-ShopGui:Init()
+local initSuccess, initErr = pcall(function()
+    ShopGui:Init()
+end)
+
+if not initSuccess then
+    warn("Failed to initialize ShopGui:", initErr)
+    warn("Check the error above and verify your setup!")
+end
 
 return ShopGui
