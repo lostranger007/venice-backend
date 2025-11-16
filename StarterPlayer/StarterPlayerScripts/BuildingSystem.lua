@@ -81,12 +81,13 @@ function BuildingSystem:IsOverlapping()
         return false
     end
 
-    -- Use Region3 to check for overlapping parts
+    -- Use a much smaller check region to only prevent major overlaps
+    -- This allows blocks to be placed adjacent/touching
     local previewSize = BuildingSystem.PreviewBlock.Size
     local previewPos = BuildingSystem.PreviewBlock.Position
 
-    -- Create a slightly smaller check region to allow touching but not major overlap
-    local checkSize = previewSize * 0.9
+    -- Only check 30% of block size - allows blocks to be adjacent
+    local checkSize = previewSize * 0.3
     local region = Region3.new(
         previewPos - (checkSize / 2),
         previewPos + (checkSize / 2)
@@ -100,7 +101,11 @@ function BuildingSystem:IsOverlapping()
         if part:IsA("BasePart") and
            part:GetAttribute("IsJetPart") and
            part:GetAttribute("Owner") == player.UserId then
-            return true
+            -- Additional check: only block if centers are very close (within 2 studs)
+            local distance = (part.Position - previewPos).Magnitude
+            if distance < 2 then
+                return true
+            end
         end
     end
 
