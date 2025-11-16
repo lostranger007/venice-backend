@@ -99,6 +99,12 @@ function VehicleController:StartControl(seat)
     print("[VehicleController] Found", #VehicleController.HovercraftParts, "parts,",
           #VehicleController.Thrusters, "thrusters,", #VehicleController.HoverPads, "hover pads")
 
+    -- Unanchor all parts so they can move
+    for _, part in ipairs(VehicleController.HovercraftParts) do
+        part.Anchored = false
+    end
+    print("[VehicleController] Unanchored all hovercraft parts")
+
     -- Create BodyVelocity and BodyGyro on seat
     if not seat:FindFirstChild("BodyVelocity") then
         local bodyVel = Instance.new("BodyVelocity")
@@ -137,6 +143,14 @@ function VehicleController:StopControl()
             fire.Enabled = false
         end
     end
+
+    -- Re-anchor all parts so they don't fall
+    for _, part in ipairs(VehicleController.HovercraftParts) do
+        if part and part.Parent then
+            part.Anchored = true
+        end
+    end
+    print("[VehicleController] Re-anchored all hovercraft parts")
 
     -- Remove forces
     if VehicleController.CurrentSeat then
