@@ -112,24 +112,35 @@ function VehicleController:StartControl(seat)
     end
     print("[VehicleController] Unanchored all hovercraft parts")
 
-    -- Create BodyThrust for movement (applies force, not velocity)
-    if not seat:FindFirstChild("BodyThrust") then
-        local bodyThrust = Instance.new("BodyThrust")
-        bodyThrust.Name = "BodyThrust"
-        bodyThrust.Force = Vector3.new(0, 0, 0)
-        bodyThrust.Location = seat.Position
-        bodyThrust.Parent = seat
+    -- Create Attachment for constraints
+    local attachment = seat:FindFirstChild("VehicleAttachment")
+    if not attachment then
+        attachment = Instance.new("Attachment")
+        attachment.Name = "VehicleAttachment"
+        attachment.Parent = seat
     end
 
-    -- Create BodyGyro for rotation
-    if not seat:FindFirstChild("BodyGyro") then
-        local bodyGyro = Instance.new("BodyGyro")
-        bodyGyro.Name = "BodyGyro"
-        bodyGyro.MaxTorque = Vector3.new(50000, 50000, 50000)
-        bodyGyro.P = 10000
-        bodyGyro.D = 1000
-        bodyGyro.CFrame = seat.CFrame
-        bodyGyro.Parent = seat
+    -- Create LinearVelocity for movement (modern constraint)
+    if not seat:FindFirstChild("LinearVelocity") then
+        local linearVel = Instance.new("LinearVelocity")
+        linearVel.Name = "LinearVelocity"
+        linearVel.Attachment0 = attachment
+        linearVel.MaxForce = math.huge
+        linearVel.VectorVelocity = Vector3.new(0, 0, 0)
+        linearVel.RelativeTo = Enum.ActuatorRelativeTo.World
+        linearVel.Parent = seat
+    end
+
+    -- Create AlignOrientation for rotation (modern constraint)
+    if not seat:FindFirstChild("AlignOrientation") then
+        local alignOrient = Instance.new("AlignOrientation")
+        alignOrient.Name = "AlignOrientation"
+        alignOrient.Attachment0 = attachment
+        alignOrient.Mode = Enum.OrientationAlignmentMode.OneAttachment
+        alignOrient.MaxTorque = math.huge
+        alignOrient.Responsiveness = 50
+        alignOrient.CFrame = seat.CFrame
+        alignOrient.Parent = seat
     end
 
     -- Activate thruster effects
@@ -169,10 +180,12 @@ function VehicleController:StopControl()
 
     -- Remove forces
     if VehicleController.CurrentSeat then
-        local bodyThrust = VehicleController.CurrentSeat:FindFirstChild("BodyThrust")
-        local bodyGyro = VehicleController.CurrentSeat:FindFirstChild("BodyGyro")
-        if bodyThrust then bodyThrust:Destroy() end
-        if bodyGyro then bodyGyro:Destroy() end
+        local linearVel = VehicleController.CurrentSeat:FindFirstChild("LinearVelocity")
+        local alignOrient = VehicleController.CurrentSeat:FindFirstChild("AlignOrientation")
+        local attachment = VehicleController.CurrentSeat:FindFirstChild("VehicleAttachment")
+        if linearVel then linearVel:Destroy() end
+        if alignOrient then alignOrient:Destroy() end
+        if attachment then attachment:Destroy() end
     end
 
     VehicleController.CurrentSeat = nil
@@ -190,69 +203,57 @@ function VehicleController:Update()
     end
 
     local seat = VehicleController.CurrentSeat
-    local bodyThrust = seat:FindFirstChild("BodyThrust")
-    local bodyGyro = seat:FindFirstChild("BodyGyro")
+    local linearVel = seat:FindFirstChild("LinearVelocity")
+    local alignOrient = seat:FindFirstChild("AlignOrientation")
 
-    if not bodyThrust or not bodyGyro then
+    if not linearVel or not alignOrient then
         return
     end
 
-    -- Calculate thrust direction
-    local thrustDirection = Vector3.new(0, 0, 0)
+    -- Calculate movement direction
+    local moveDirection = Vector3.new(0, 0, 0)
 
     if input.W then
-        thrustDirection = thrustDirection + seat.CFrame.LookVector
+        moveDirection = moveDirection + seat.CFrame.LookVector
     end
     if input.S then
-        thrustDirection = thrustDirection - seat.CFrame.LookVector
+        moveDirection = moveDirection - seat.CFrame.LookVector
     end
     if input.A then
-        thrustDirection = thrustDirection - seat.CFrame.RightVector
+        moveDirection = moveDirection - seat.CFrame.RightVector
     end
     if input.D then
-        thrustDirection = thrustDirection + seat.CFrame.RightVector
+        moveDirection = moveDirection + seat.CFrame.RightVector
     end
     if input.Space then
-        thrustDirection = thrustDirection + Vector3.new(0, 1, 0)
+        moveDirection = moveDirection + Vector3.new(0, 1, 0)
     end
     if input.LeftShift then
-        thrustDirection = thrustDirection - Vector3.new(0, 1, 0)
+        moveDirection = moveDirection - Vector3.new(0, 1, 0)
     end
 
-    -- Calculate total thrust power
-    local totalThrust = 5000  -- Base thrust force
+    -- Calculate speed based on thrusters
+    local speed = BASE_SPEED
     for _, thruster in ipairs(VehicleController.Thrusters) do
-        totalThrust = totalThrust + (thruster:GetAttribute("ThrustPower") or 0) * 100
+        speed = speed + (thruster:GetAttribute("ThrustPower") or 0) * 0.05
     end
 
-    -- Calculate total mass of vehicle
-    local totalMass = 0
-    for _, part in ipairs(VehicleController.HovercraftParts) do
-        totalMass = totalMass + part:GetMass()
+    -- Apply movement velocity
+    local targetVelocity = Vector3.new(0, 15, 0)  -- Default hover velocity
+    if moveDirection.Magnitude > 0 then
+        targetVelocity = moveDirection.Unit * speed + Vector3.new(0, 15, 0)
     end
 
-    -- Apply thrust force
-    local thrustForce = Vector3.new(0, 0, 0)
-    if thrustDirection.Magnitude > 0 then
-        thrustForce = thrustDirection.Unit * totalThrust
-    end
-
-    -- Add hover force to counteract gravity
-    local gravityForce = totalMass * 196.2  -- Roblox gravity
-    local hoverForce = gravityForce * 1.2  -- 20% extra lift
-    thrustForce = thrustForce + Vector3.new(0, hoverForce, 0)
-
-    bodyThrust.Force = thrustForce
-    bodyThrust.Location = seat.Position
+    linearVel.VectorVelocity = targetVelocity
 
     -- Apply rotation
     if input.Q then
-        bodyGyro.CFrame = bodyGyro.CFrame * CFrame.Angles(0, math.rad(TURN_SPEED), 0)
+        alignOrient.CFrame = alignOrient.CFrame * CFrame.Angles(0, math.rad(TURN_SPEED), 0)
     elseif input.E then
-        bodyGyro.CFrame = bodyGyro.CFrame * CFrame.Angles(0, -math.rad(TURN_SPEED), 0)
+        alignOrient.CFrame = alignOrient.CFrame * CFrame.Angles(0, -math.rad(TURN_SPEED), 0)
     else
-        -- Gradually return to seat orientation
-        bodyGyro.CFrame = bodyGyro.CFrame:Lerp(seat.CFrame, 0.1)
+        -- Gradually align with seat orientation
+        alignOrient.CFrame = alignOrient.CFrame:Lerp(seat.CFrame, 0.1)
     end
 end
 
