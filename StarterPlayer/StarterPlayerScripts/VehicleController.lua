@@ -14,6 +14,10 @@ local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 local mouse = player:GetMouse()
 
+-- Wait for character to load
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+
 local JetController = {}
 JetController.Active = false
 JetController.CurrentCockpit = nil
@@ -110,8 +114,9 @@ function JetController:StartControl(cockpit)
     -- Unanchor all parts so they can move
     for _, part in ipairs(JetController.JetParts) do
         part.Anchored = false
+        print("[JetController] Unanchored:", part.Name, "IsAnchored:", part.Anchored)
     end
-    print("[JetController] Unanchored all jet parts")
+    print("[JetController] Finished unanchoring all jet parts")
 
     -- Create BodyVelocity for movement
     local bodyVel = Instance.new("BodyVelocity")
@@ -131,6 +136,9 @@ function JetController:StartControl(cockpit)
     bodyGyro.Parent = cockpit
 
     print("[JetController] Physics created - Ready to fly!")
+    print("[JetController] BodyVelocity MaxForce:", bodyVel.MaxForce)
+    print("[JetController] BodyGyro MaxTorque:", bodyGyro.MaxTorque)
+    print("[JetController] Cockpit Anchored:", cockpit.Anchored)
 
     -- Activate engine effects
     for _, engine in ipairs(JetController.Engines) do
@@ -190,6 +198,7 @@ function JetController:StopControl()
 end
 
 -- Update jet physics (mouse-based flight)
+local debugCounter = 0
 function JetController:Update(deltaTime)
     if not JetController.Active or not JetController.CurrentCockpit then
         return
@@ -202,6 +211,13 @@ function JetController:Update(deltaTime)
     if not bodyVel or not bodyGyro then
         warn("[JetController] Physics objects missing!")
         return
+    end
+
+    -- Debug every 60 frames (about 1 second)
+    debugCounter = debugCounter + 1
+    if debugCounter >= 60 then
+        debugCounter = 0
+        print("[JetController] Update - Throttle:", JetController.Throttle, "Speed:", bodyVel.Velocity.Magnitude, "Anchored:", cockpit.Anchored)
     end
 
     -- Update throttle
@@ -224,14 +240,19 @@ function JetController:Update(deltaTime)
     -- Calculate velocity based on where cockpit is facing
     local forwardVelocity = cockpit.CFrame.LookVector * speed
 
-    -- Add slight upward force for lift (based on wings)
+    -- Add hover force - always push upward to counteract gravity
+    local hoverForce = 30  -- Base hover force
+
+    -- Add lift from wings when moving
     local liftForce = 0
     for _, wing in ipairs(JetController.Wings) do
         liftForce = liftForce + (wing:GetAttribute("LiftPower") or 0)
     end
-    local upwardVelocity = Vector3.new(0, liftForce * 0.1 * JetController.Throttle, 0)
 
-    bodyVel.Velocity = forwardVelocity + upwardVelocity
+    -- Total upward velocity = hover + lift (lift increases with throttle)
+    local upwardVelocity = hoverForce + (liftForce * 0.2 * JetController.Throttle)
+
+    bodyVel.Velocity = forwardVelocity + Vector3.new(0, upwardVelocity, 0)
 
     -- MOUSE AIMING: Point jet where mouse is looking
     local mouseRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
@@ -312,14 +333,33 @@ UserInputService.InputEnded:Connect(function(inputObj)
 end)
 
 -- Detect cockpit sitting
-player.Character:WaitForChild("Humanoid").Seated:Connect(function(isSeated, seat)
+humanoid.Seated:Connect(function(isSeated, seat)
+    print("[JetController] Seated event:", isSeated, seat)
     if isSeated and seat and seat:GetAttribute("IsCockpit") then
+        print("[JetController] Detected cockpit, starting control")
         JetController:StartControl(seat)
     else
         if JetController.Active then
+            print("[JetController] Exited seat, stopping control")
             JetController:StopControl()
         end
     end
+end)
+
+-- Handle character respawn
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    humanoid = character:WaitForChild("Humanoid")
+
+    humanoid.Seated:Connect(function(isSeated, seat)
+        if isSeated and seat and seat:GetAttribute("IsCockpit") then
+            JetController:StartControl(seat)
+        else
+            if JetController.Active then
+                JetController:StopControl()
+            end
+        end
+    end)
 end)
 
 -- Update loop
