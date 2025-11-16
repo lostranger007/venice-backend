@@ -45,8 +45,8 @@ local input = {
 
 -- Settings
 local THROTTLE_SPEED = 0.5  -- How fast throttle changes
-local ROLL_SPEED = 3  -- Roll speed in degrees
-local MOUSE_SENSITIVITY = 0.3  -- How responsive mouse control is
+local TURN_SPEED = 1.5  -- How fast jet turns left/right
+local PITCH_SPEED = 1.0  -- How fast jet pitches up/down
 local AFTERBURNER_MULTIPLIER = 2.0
 
 -- Find all connected jet parts
@@ -98,9 +98,6 @@ function JetController:StartControl(cockpit)
     JetController.Active = true
     JetController.CurrentCockpit = cockpit
     JetController.Throttle = 0
-
-    -- Lock mouse to center and hide cursor
-    UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 
     print("[JetController] Taking control of jet...")
 
@@ -201,9 +198,6 @@ end
 -- Stop controlling jet
 function JetController:StopControl()
     JetController.Active = false
-
-    -- Unlock mouse
-    UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 
     -- Deactivate engine effects
     for _, engine in ipairs(JetController.Engines) do
@@ -314,28 +308,24 @@ function JetController:Update(deltaTime)
 
     linearVel.VectorVelocity = forwardVelocity + Vector3.new(0, upwardVelocity, 0)
 
-    -- MOUSE AIMING: Point jet where mouse is looking
-    local mouseRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
-    local targetPosition = mouseRay.Origin + mouseRay.Direction * 100
+    -- WASD FLIGHT CONTROLS (no mouse)
+    local currentCFrame = cockpit.CFrame
 
-    -- Calculate target orientation
-    local targetCFrame = CFrame.lookAt(cockpit.Position, targetPosition)
-
-    -- Apply roll with A/D
-    local rollAngle = 0
+    -- A/D for turning left/right (yaw)
+    local turnAmount = 0
     if input.A then
-        rollAngle = math.rad(-ROLL_SPEED)
+        turnAmount = TURN_SPEED
     elseif input.D then
-        rollAngle = math.rad(ROLL_SPEED)
+        turnAmount = -TURN_SPEED
     end
 
-    if rollAngle ~= 0 then
-        targetCFrame = targetCFrame * CFrame.Angles(0, 0, rollAngle)
+    -- Apply turn
+    if turnAmount ~= 0 then
+        currentCFrame = currentCFrame * CFrame.Angles(0, math.rad(turnAmount), 0)
     end
 
-    -- Smoothly rotate to target (faster with better maneuverability)
-    local lerpSpeed = MOUSE_SENSITIVITY * JetController.Maneuverability
-    alignOrientation.CFrame = alignOrientation.CFrame:Lerp(targetCFrame, lerpSpeed)
+    -- Set target orientation
+    alignOrientation.CFrame = currentCFrame
 end
 
 -- Fire weapons
@@ -429,9 +419,8 @@ end)
 
 print("[JetController] Initialized")
 print("[JetController] Controls:")
-print("  - Mouse: Aim jet")
 print("  - W/S: Throttle up/down")
-print("  - A/D: Roll left/right")
+print("  - A/D: Turn left/right")
 print("  - Space: Afterburner")
 print("  - Click: Fire weapons")
 

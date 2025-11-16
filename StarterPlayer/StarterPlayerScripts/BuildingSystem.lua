@@ -137,12 +137,9 @@ function BuildingSystem:PlaceBlock()
     if result.success then
         print("[BuildingSystem] Block placed:", BuildingSystem.CurrentBlock.Name)
 
-        -- Weld nearby blocks
-        task.wait(0.1)
-        local newBlock = result.block
-        if newBlock then
-            BuildingSystem:WeldToNearbyBlocks(newBlock)
-        end
+        -- Weld nearby blocks (wait for block to exist in workspace)
+        task.wait(0.2)
+        BuildingSystem:WeldNearbyParts(targetCFrame.Position)
 
         return true
     else
@@ -151,26 +148,52 @@ function BuildingSystem:PlaceBlock()
     end
 end
 
--- Weld to nearby blocks
-function BuildingSystem:WeldToNearbyBlocks(block)
-    if not block or not block.Parent then return end
+-- Weld nearby parts together (called after placing a block)
+function BuildingSystem:WeldNearbyParts(placedPosition)
+    print("[BuildingSystem] Looking for parts to weld near", placedPosition)
 
+    -- Find the block we just placed
+    local placedBlock = nil
     for _, part in ipairs(workspace:GetDescendants()) do
         if part:IsA("BasePart") and
-           part ~= block and
            part:GetAttribute("IsJetPart") and
            part:GetAttribute("Owner") == player.UserId then
-
-            local distance = (part.Position - block.Position).Magnitude
-            if distance < 10 then
-                local weld = Instance.new("WeldConstraint")
-                weld.Part0 = block
-                weld.Part1 = part
-                weld.Parent = block
-                print("[BuildingSystem] Welded to", part.Name)
+            local distance = (part.Position - placedPosition).Magnitude
+            if distance < 1 then  -- Very close = the block we just placed
+                placedBlock = part
+                break
             end
         end
     end
+
+    if not placedBlock then
+        warn("[BuildingSystem] Couldn't find placed block to weld!")
+        return
+    end
+
+    print("[BuildingSystem] Found placed block:", placedBlock.Name)
+
+    -- Now weld it to all nearby jet parts
+    local weldCount = 0
+    for _, part in ipairs(workspace:GetDescendants()) do
+        if part:IsA("BasePart") and
+           part ~= placedBlock and
+           part:GetAttribute("IsJetPart") and
+           part:GetAttribute("Owner") == player.UserId then
+
+            local distance = (part.Position - placedBlock.Position).Magnitude
+            if distance < 15 then  -- Increased from 10 to 15 studs
+                local weld = Instance.new("WeldConstraint")
+                weld.Part0 = placedBlock
+                weld.Part1 = part
+                weld.Parent = placedBlock
+                weldCount = weldCount + 1
+                print("[BuildingSystem] Welded", placedBlock.Name, "to", part.Name, "distance:", math.floor(distance))
+            end
+        end
+    end
+
+    print("[BuildingSystem] Created", weldCount, "welds")
 end
 
 -- Delete block
