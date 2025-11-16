@@ -133,27 +133,35 @@ function JetController:StartControl(cockpit)
     end
     print("[JetController] Found", weldCount, "WeldConstraints connecting parts")
 
-    -- Create BodyVelocity for movement
-    local bodyVel = Instance.new("BodyVelocity")
-    bodyVel.Name = "JetBodyVelocity"
-    bodyVel.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-    bodyVel.Velocity = Vector3.new(0, 0, 0)
-    bodyVel.P = 1250
-    bodyVel.Parent = cockpit
+    -- Create Attachment for constraints
+    local attachment = Instance.new("Attachment")
+    attachment.Name = "JetAttachment"
+    attachment.Parent = cockpit
 
-    -- Create BodyGyro for rotation (mouse aiming)
-    local bodyGyro = Instance.new("BodyGyro")
-    bodyGyro.Name = "JetBodyGyro"
-    bodyGyro.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-    bodyGyro.P = 10000
-    bodyGyro.D = 1000
-    bodyGyro.CFrame = cockpit.CFrame
-    bodyGyro.Parent = cockpit
+    -- Create LinearVelocity for movement (modern replacement for BodyVelocity)
+    local linearVel = Instance.new("LinearVelocity")
+    linearVel.Name = "JetLinearVelocity"
+    linearVel.Attachment0 = attachment
+    linearVel.MaxForce = math.huge
+    linearVel.VectorVelocity = Vector3.new(0, 0, 0)
+    linearVel.RelativeTo = Enum.ActuatorRelativeTo.World
+    linearVel.Parent = cockpit
+
+    -- Create AlignOrientation for rotation (modern replacement for BodyGyro)
+    local alignOrientation = Instance.new("AlignOrientation")
+    alignOrientation.Name = "JetAlignOrientation"
+    alignOrientation.Attachment0 = attachment
+    alignOrientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
+    alignOrientation.MaxTorque = math.huge
+    alignOrientation.Responsiveness = 50
+    alignOrientation.CFrame = cockpit.CFrame
+    alignOrientation.Parent = cockpit
 
     print("[JetController] Physics created - Ready to fly!")
-    print("[JetController] BodyVelocity MaxForce:", bodyVel.MaxForce)
-    print("[JetController] BodyGyro MaxTorque:", bodyGyro.MaxTorque)
+    print("[JetController] LinearVelocity MaxForce:", linearVel.MaxForce)
+    print("[JetController] AlignOrientation MaxTorque:", alignOrientation.MaxTorque)
     print("[JetController] Cockpit Anchored:", cockpit.Anchored)
+    print("[JetController] Assembly Root:", cockpit:GetRootPart().Name)
 
     -- Activate engine effects
     for _, engine in ipairs(JetController.Engines) do
@@ -184,10 +192,12 @@ function JetController:StopControl()
 
     -- Remove physics
     if JetController.CurrentCockpit then
-        local bodyVel = JetController.CurrentCockpit:FindFirstChild("JetBodyVelocity")
-        local bodyGyro = JetController.CurrentCockpit:FindFirstChild("JetBodyGyro")
-        if bodyVel then bodyVel:Destroy() end
-        if bodyGyro then bodyGyro:Destroy() end
+        local linearVel = JetController.CurrentCockpit:FindFirstChild("JetLinearVelocity")
+        local alignOrientation = JetController.CurrentCockpit:FindFirstChild("JetAlignOrientation")
+        local attachment = JetController.CurrentCockpit:FindFirstChild("JetAttachment")
+        if linearVel then linearVel:Destroy() end
+        if alignOrientation then alignOrientation:Destroy() end
+        if attachment then attachment:Destroy() end
     end
 
     -- Re-anchor all parts and re-enable collision
@@ -221,10 +231,10 @@ function JetController:Update(deltaTime)
     end
 
     local cockpit = JetController.CurrentCockpit
-    local bodyVel = cockpit:FindFirstChild("JetBodyVelocity")
-    local bodyGyro = cockpit:FindFirstChild("JetBodyGyro")
+    local linearVel = cockpit:FindFirstChild("JetLinearVelocity")
+    local alignOrientation = cockpit:FindFirstChild("JetAlignOrientation")
 
-    if not bodyVel or not bodyGyro then
+    if not linearVel or not alignOrientation then
         warn("[JetController] Physics objects missing!")
         return
     end
@@ -234,7 +244,7 @@ function JetController:Update(deltaTime)
     if debugCounter >= 60 then
         debugCounter = 0
         print("[JetController] Update - Throttle:", JetController.Throttle)
-        print("  INTENDED Velocity:", bodyVel.Velocity.Magnitude)
+        print("  INTENDED Velocity:", linearVel.VectorVelocity.Magnitude)
         print("  ACTUAL Velocity:", cockpit.AssemblyLinearVelocity.Magnitude)
         print("  Anchored:", cockpit.Anchored)
         print("  CanCollide:", cockpit.CanCollide)
@@ -273,7 +283,7 @@ function JetController:Update(deltaTime)
     -- Total upward velocity = hover + lift (lift increases with throttle)
     local upwardVelocity = hoverForce + (liftForce * 0.2 * JetController.Throttle)
 
-    bodyVel.Velocity = forwardVelocity + Vector3.new(0, upwardVelocity, 0)
+    linearVel.VectorVelocity = forwardVelocity + Vector3.new(0, upwardVelocity, 0)
 
     -- MOUSE AIMING: Point jet where mouse is looking
     local mouseRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
@@ -296,7 +306,7 @@ function JetController:Update(deltaTime)
 
     -- Smoothly rotate to target (faster with better maneuverability)
     local lerpSpeed = MOUSE_SENSITIVITY * JetController.Maneuverability
-    bodyGyro.CFrame = bodyGyro.CFrame:Lerp(targetCFrame, lerpSpeed)
+    alignOrientation.CFrame = alignOrientation.CFrame:Lerp(targetCFrame, lerpSpeed)
 end
 
 -- Fire weapons

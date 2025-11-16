@@ -184,7 +184,7 @@ function BuildingSystem:DeleteBlock()
 
     if rayResult and rayResult.Instance then
         local hitPart = rayResult.Instance
-        if hitPart:GetAttribute("IsHovercraftPart") and
+        if hitPart:GetAttribute("IsJetPart") and
            hitPart:GetAttribute("Owner") == player.UserId then
             hitPart:Destroy()
             print("[BuildingSystem] Deleted block")
