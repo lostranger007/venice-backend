@@ -6,7 +6,6 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -250,7 +249,7 @@ function ShopController:OpenBuildMenu()
     local header = Instance.new("TextLabel")
     header.Size = UDim2.new(1, 0, 0, 40)
     header.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-    header.Text = "BUILD MODE - Click to Spawn"
+    header.Text = "BUILD MODE - Select Block to Place"
     header.TextColor3 = Color3.fromRGB(255, 255, 255)
     header.TextSize = 18
     header.Font = Enum.Font.GothamBold
@@ -321,9 +320,18 @@ function ShopController:OpenBuildMenu()
             colorCorner.CornerRadius = UDim.new(0, 4)
             colorCorner.Parent = colorBox
 
-            -- Spawn item on click
+            -- Start building mode on click
             itemButton.MouseButton1Click:Connect(function()
-                ShopController:SpawnItem(itemName)
+                -- Access global building system
+                if _G.BuildingSystem then
+                    _G.BuildingSystem:StartBuilding(item)
+                    ShopController:ShowNotification("Building " .. item.Name .. "! Click to place, R/E to rotate, X to delete, ESC to cancel", Color3.fromRGB(100, 200, 255))
+                    -- Close build menu
+                    buildMenu:Destroy()
+                else
+                    warn("Building system not loaded!")
+                    ShopController:ShowNotification("Building system not ready!", Color3.fromRGB(255, 100, 100))
+                end
             end)
         end
     end
@@ -332,26 +340,7 @@ function ShopController:OpenBuildMenu()
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
 end
 
--- Handle keyboard shortcuts
-function ShopController:SetupInput()
-    UserInputService.InputBegan:Connect(function(input, gameProcessed)
-        if gameProcessed then return end
-
-        -- Press B to open build menu
-        if input.KeyCode == Enum.KeyCode.B then
-            ShopController:OpenBuildMenu()
-        end
-
-        -- Press S to toggle shop
-        if input.KeyCode == Enum.KeyCode.S then
-            local shopGui = playerGui:FindFirstChild("HovercraftShopGui")
-            if shopGui and shopGui:FindFirstChild("ShopFrame") then
-                local shopFrame = shopGui.ShopFrame
-                shopFrame.Visible = not shopFrame.Visible
-            end
-        end
-    end)
-end
+-- Keyboard shortcuts removed - use GUI buttons only
 
 -- Initialize
 function ShopController:Init()
@@ -377,10 +366,9 @@ function ShopController:Init()
     -- Create additional UI
     task.wait(1)  -- Wait for ShopGui to initialize
     ShopController:CreateInventoryUI()
-    ShopController:SetupInput()
 
     print("ShopController initialized")
-    ShopController:ShowNotification("Welcome! Press S for Shop, B for Build", Color3.fromRGB(100, 100, 255))
+    ShopController:ShowNotification("Welcome! Use the SHOP and BUILD buttons!", Color3.fromRGB(100, 100, 255))
 end
 
 -- Auto-initialize

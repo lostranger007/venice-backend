@@ -104,7 +104,7 @@ local function onPurchaseRequest(player, itemName)
 end
 
 -- Handle item spawn request
-local function onSpawnRequest(player, itemName)
+local function onSpawnRequest(player, itemName, cframe)
     -- Check if player owns the item
     if not DataManager:OwnsItem(player, itemName) then
         return {success = false, message = "You don't own this item!"}
@@ -118,14 +118,20 @@ local function onSpawnRequest(player, itemName)
     -- Create the block
     local block = createBlock(item, player)
 
-    -- Position in front of player
-    local character = player.Character
-    if character and character:FindFirstChild("HumanoidRootPart") then
-        local rootPart = character.HumanoidRootPart
-        local spawnPosition = rootPart.Position + rootPart.CFrame.LookVector * 10
-        block.Position = spawnPosition + Vector3.new(0, 5, 0)
+    -- Position block
+    if cframe then
+        -- Use provided CFrame (from building system)
+        block.CFrame = cframe
     else
-        block.Position = Vector3.new(0, 50, 0)
+        -- Default: position in front of player
+        local character = player.Character
+        if character and character:FindFirstChild("HumanoidRootPart") then
+            local rootPart = character.HumanoidRootPart
+            local spawnPosition = rootPart.Position + rootPart.CFrame.LookVector * 10
+            block.Position = spawnPosition + Vector3.new(0, 5, 0)
+        else
+            block.Position = Vector3.new(0, 50, 0)
+        end
     end
 
     block.Parent = workspace
