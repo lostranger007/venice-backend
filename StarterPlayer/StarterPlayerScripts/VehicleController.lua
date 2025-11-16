@@ -93,6 +93,12 @@ function VehicleController:StartControl(seat)
     VehicleController.Active = true
     VehicleController.CurrentSeat = seat
 
+    -- Disable jumping so Space key doesn't make player jump out
+    if humanoid then
+        humanoid.JumpPower = 0
+        humanoid.JumpHeight = 0
+    end
+
     -- Find all parts
     VehicleController.HovercraftParts, VehicleController.Thrusters, VehicleController.HoverPads =
         VehicleController:FindHovercraftParts(seat)
@@ -137,6 +143,12 @@ end
 -- Stop controlling vehicle
 function VehicleController:StopControl()
     VehicleController.Active = false
+
+    -- Re-enable jumping
+    if humanoid then
+        humanoid.JumpPower = 50
+        humanoid.JumpHeight = 7.2
+    end
 
     -- Deactivate thruster effects
     for _, thruster in ipairs(VehicleController.Thrusters) do
