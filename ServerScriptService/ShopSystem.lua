@@ -26,7 +26,7 @@ local function createBlock(itemData, player)
         block.Color = itemData.Color
         block.TopSurface = Enum.SurfaceType.Smooth
         block.BottomSurface = Enum.SurfaceType.Smooth
-        block.Anchored = false
+        block.Anchored = true  -- Anchored so it doesn't fall
         block.CanCollide = true
     else
         -- Regular part for everything else
@@ -37,7 +37,7 @@ local function createBlock(itemData, player)
         block.Material = Enum.Material.SmoothPlastic
         block.TopSurface = Enum.SurfaceType.Smooth
         block.BottomSurface = Enum.SurfaceType.Smooth
-        block.Anchored = false
+        block.Anchored = true  -- Anchored so it doesn't fall
         block.CanCollide = true
     end
 

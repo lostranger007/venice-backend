@@ -12,7 +12,7 @@ local playerData = {}
 local PlayerDataStore = DataStoreService:GetDataStore("HovercraftPlayerData_v1")
 
 local DEFAULT_DATA = {
-    Coins = 100,
+    Coins = 1000000,  -- Start with 1 million coins
     OwnedItems = {"Wooden Block"}
 }
 

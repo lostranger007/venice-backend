@@ -24,6 +24,7 @@ BuildingSystem.PreviewBlock = nil
 BuildingSystem.Rotation = 0
 BuildingSystem.GridSize = 1
 BuildingSystem.MaxPlaceDistance = 50
+BuildingSystem.DeleteModeEnabled = false  -- Toggle for delete mode
 
 -- Create build plate
 local buildPlate = Instance.new("Part")
@@ -218,7 +219,11 @@ end
 
 -- Input handling
 mouse.Button1Down:Connect(function()
-    if BuildingSystem.Enabled then
+    if BuildingSystem.DeleteModeEnabled then
+        -- Delete mode - clicking deletes blocks
+        BuildingSystem:DeleteBlock()
+    elseif BuildingSystem.Enabled then
+        -- Build mode - clicking places blocks
         BuildingSystem:PlaceBlock()
     end
 end)
