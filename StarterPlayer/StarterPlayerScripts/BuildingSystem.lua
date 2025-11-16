@@ -75,6 +75,38 @@ function BuildingSystem:SnapToGrid(position)
     )
 end
 
+-- Check if preview block overlaps with existing blocks
+function BuildingSystem:IsOverlapping()
+    if not BuildingSystem.PreviewBlock then
+        return false
+    end
+
+    -- Use Region3 to check for overlapping parts
+    local previewSize = BuildingSystem.PreviewBlock.Size
+    local previewPos = BuildingSystem.PreviewBlock.Position
+
+    -- Create a slightly smaller check region to allow touching but not major overlap
+    local checkSize = previewSize * 0.9
+    local region = Region3.new(
+        previewPos - (checkSize / 2),
+        previewPos + (checkSize / 2)
+    )
+    region = region:ExpandToGrid(4)
+
+    local parts = workspace:FindPartsInRegion3(region, BuildingSystem.PreviewBlock, 100)
+
+    -- Check if any parts are jet parts owned by player
+    for _, part in ipairs(parts) do
+        if part:IsA("BasePart") and
+           part:GetAttribute("IsJetPart") and
+           part:GetAttribute("Owner") == player.UserId then
+            return true
+        end
+    end
+
+    return false
+end
+
 -- Check valid placement
 function BuildingSystem:IsValidPlacement(position)
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -83,6 +115,12 @@ function BuildingSystem:IsValidPlacement(position)
             return false
         end
     end
+
+    -- Check for overlaps with existing blocks
+    if BuildingSystem:IsOverlapping() then
+        return false
+    end
+
     return true
 end
 
@@ -126,8 +164,15 @@ function BuildingSystem:PlaceBlock()
     end
 
     local position = BuildingSystem.PreviewBlock.Position
+
+    -- Check why placement is invalid
+    if BuildingSystem:IsOverlapping() then
+        warn("[BuildingSystem] Can't place - block is overlapping with existing parts!")
+        return false
+    end
+
     if not BuildingSystem:IsValidPlacement(position) then
-        print("[BuildingSystem] Invalid placement")
+        warn("[BuildingSystem] Invalid placement - too far away or blocked")
         return false
     end
 
