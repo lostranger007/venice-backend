@@ -119,30 +119,10 @@ function VehicleController:StartControl(seat)
     end
 
     print("[VehicleController] Total vehicle mass:", totalMass)
+    print("[VehicleController] Assembly root:", seat:GetRootPart())
 
-    -- Create BodyVelocity for movement
-    if not seat:FindFirstChild("BodyVelocity") then
-        local bodyVel = Instance.new("BodyVelocity")
-        bodyVel.Name = "BodyVelocity"
-        -- MaxForce needs to be strong enough to move the entire mass
-        bodyVel.MaxForce = Vector3.new(totalMass * 1000, totalMass * 1000, totalMass * 1000)
-        bodyVel.Velocity = Vector3.new(0, 0, 0)
-        bodyVel.P = 10000
-        bodyVel.Parent = seat
-        print("[VehicleController] Created BodyVelocity with MaxForce:", bodyVel.MaxForce)
-    end
-
-    -- Create BodyGyro for rotation
-    if not seat:FindFirstChild("BodyGyro") then
-        local bodyGyro = Instance.new("BodyGyro")
-        bodyGyro.Name = "BodyGyro"
-        bodyGyro.MaxTorque = Vector3.new(totalMass * 500, totalMass * 500, totalMass * 500)
-        bodyGyro.P = 20000
-        bodyGyro.D = 500
-        bodyGyro.CFrame = seat.CFrame
-        bodyGyro.Parent = seat
-        print("[VehicleController] Created BodyGyro with MaxTorque:", bodyGyro.MaxTorque)
-    end
+    -- We'll use AssemblyLinearVelocity and AssemblyAngularVelocity directly on the seat
+    -- These properties affect the entire welded assembly, not just one part
 
     -- Activate thruster effects
     for _, thruster in ipairs(VehicleController.Thrusters) do
@@ -171,6 +151,12 @@ function VehicleController:StopControl()
         end
     end
 
+    -- Stop the vehicle movement
+    if VehicleController.CurrentSeat then
+        VehicleController.CurrentSeat.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+        VehicleController.CurrentSeat.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+    end
+
     -- Re-anchor all parts so they don't fall
     for _, part in ipairs(VehicleController.HovercraftParts) do
         if part and part.Parent then
@@ -178,14 +164,6 @@ function VehicleController:StopControl()
         end
     end
     print("[VehicleController] Re-anchored all hovercraft parts")
-
-    -- Remove forces
-    if VehicleController.CurrentSeat then
-        local bodyVel = VehicleController.CurrentSeat:FindFirstChild("BodyVelocity")
-        local bodyGyro = VehicleController.CurrentSeat:FindFirstChild("BodyGyro")
-        if bodyVel then bodyVel:Destroy() end
-        if bodyGyro then bodyGyro:Destroy() end
-    end
 
     VehicleController.CurrentSeat = nil
     VehicleController.HovercraftParts = {}
@@ -202,12 +180,6 @@ function VehicleController:Update()
     end
 
     local seat = VehicleController.CurrentSeat
-    local bodyVel = seat:FindFirstChild("BodyVelocity")
-    local bodyGyro = seat:FindFirstChild("BodyGyro")
-
-    if not bodyVel or not bodyGyro then
-        return
-    end
 
     -- Calculate movement direction
     local moveDirection = Vector3.new(0, 0, 0)
@@ -246,17 +218,18 @@ function VehicleController:Update()
         targetVelocity = targetVelocity + moveVelocity
     end
 
-    bodyVel.Velocity = targetVelocity
+    -- Use AssemblyLinearVelocity to move the entire welded assembly
+    seat.AssemblyLinearVelocity = targetVelocity
 
-    -- Apply rotation
+    -- Apply rotation using AssemblyAngularVelocity
+    local angularVelocity = Vector3.new(0, 0, 0)
     if input.Q then
-        bodyGyro.CFrame = bodyGyro.CFrame * CFrame.Angles(0, math.rad(TURN_SPEED), 0)
+        angularVelocity = Vector3.new(0, math.rad(TURN_SPEED * 10), 0)
     elseif input.E then
-        bodyGyro.CFrame = bodyGyro.CFrame * CFrame.Angles(0, -math.rad(TURN_SPEED), 0)
-    else
-        -- Gradually align with seat orientation
-        bodyGyro.CFrame = bodyGyro.CFrame:Lerp(seat.CFrame, 0.1)
+        angularVelocity = Vector3.new(0, -math.rad(TURN_SPEED * 10), 0)
     end
+
+    seat.AssemblyAngularVelocity = angularVelocity
 end
 
 -- Input handling
