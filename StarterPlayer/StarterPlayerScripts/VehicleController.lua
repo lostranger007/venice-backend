@@ -114,7 +114,20 @@ function JetController:StartControl(cockpit)
           #JetController.Weapons, "weapons")
     print("[JetController] Total thrust:", JetController.TotalThrust, "Max speed:", JetController.MaxSpeed)
 
-    -- Unanchor all parts and disable collision so they can move freely
+    -- CRITICAL: Unanchor cockpit FIRST (VehicleSeat needs special handling)
+    cockpit.Anchored = false
+
+    -- Disable VehicleSeat's built-in physics (it fights against our custom physics!)
+    if cockpit:IsA("VehicleSeat") then
+        cockpit.MaxSpeed = 0
+        cockpit.Torque = 0
+        cockpit.TurnSpeed = 0
+        print("[JetController] Disabled VehicleSeat built-in physics")
+    end
+
+    print("[JetController] COCKPIT unanchored:", cockpit.Name, "Anchored:", cockpit.Anchored)
+
+    -- Unanchor all other parts and disable collision so they can move freely
     for _, part in ipairs(JetController.JetParts) do
         part.Anchored = false
         part.CanCollide = false  -- Disable collision to prevent parts from fighting each other
@@ -157,11 +170,21 @@ function JetController:StartControl(cockpit)
     alignOrientation.CFrame = cockpit.CFrame
     alignOrientation.Parent = cockpit
 
+    -- VERIFY: Double-check cockpit is unanchored after creating physics
+    if cockpit.Anchored then
+        warn("[JetController] WARNING: Cockpit re-anchored itself! Forcing unanchor...")
+        cockpit.Anchored = false
+    end
+
     print("[JetController] Physics created - Ready to fly!")
     print("[JetController] LinearVelocity MaxForce:", linearVel.MaxForce)
     print("[JetController] AlignOrientation MaxTorque:", alignOrientation.MaxTorque)
     print("[JetController] Cockpit Anchored:", cockpit.Anchored)
     print("[JetController] Assembly Root:", cockpit:GetRootPart().Name)
+
+    -- FINAL CHECK: Verify in the next frame
+    task.wait(0.1)
+    print("[JetController] FINAL CHECK - Cockpit still unanchored?", not cockpit.Anchored)
 
     -- Activate engine effects
     for _, engine in ipairs(JetController.Engines) do
@@ -239,6 +262,12 @@ function JetController:Update(deltaTime)
         return
     end
 
+    -- CRITICAL: If cockpit becomes anchored, force unanchor every frame
+    if cockpit.Anchored then
+        warn("[JetController] BUG: Cockpit became anchored during flight! Re-unanchoring...")
+        cockpit.Anchored = false
+    end
+
     -- Debug every 60 frames (about 1 second)
     debugCounter = debugCounter + 1
     if debugCounter >= 60 then
@@ -246,9 +275,9 @@ function JetController:Update(deltaTime)
         print("[JetController] Update - Throttle:", JetController.Throttle)
         print("  INTENDED Velocity:", linearVel.VectorVelocity.Magnitude)
         print("  ACTUAL Velocity:", cockpit.AssemblyLinearVelocity.Magnitude)
-        print("  Anchored:", cockpit.Anchored)
-        print("  CanCollide:", cockpit.CanCollide)
+        print("  Anchored:", cockpit.Anchored, "CanCollide:", cockpit.CanCollide)
         print("  Position:", cockpit.Position)
+        print("  LinearVel enabled:", linearVel.Enabled, "Parent:", linearVel.Parent ~= nil)
     end
 
     -- Update throttle
