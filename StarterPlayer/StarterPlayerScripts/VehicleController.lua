@@ -109,86 +109,51 @@ function JetController:StartControl(cockpit)
     print("[JetController] Found", #JetController.JetParts, "parts,",
           #JetController.Engines, "engines,", #JetController.Wings, "wings,",
           #JetController.Weapons, "weapons")
-    print("[JetController] Total thrust:", JetController.TotalThrust, "Max speed:", JetController.MaxSpeed)
 
-    -- CRITICAL: Unanchor cockpit FIRST (VehicleSeat needs special handling)
-    cockpit.Anchored = false
+    -- DISABLE ALL PART PHYSICS - This is critical!
+    for _, part in ipairs(JetController.JetParts) do
+        part.Anchored = false
+        part.CanCollide = false
+        part.Massless = true  -- Remove mass to simplify physics
+        -- Destroy any existing body movers
+        for _, child in ipairs(part:GetChildren()) do
+            if child:IsA("BodyMover") or child:IsA("Constraint") then
+                child:Destroy()
+            end
+        end
+        print("[JetController] Prepared part:", part.Name)
+    end
 
-    -- Disable VehicleSeat's built-in physics (it fights against our custom physics!)
+    -- Disable VehicleSeat's built-in physics
     if cockpit:IsA("VehicleSeat") then
         cockpit.MaxSpeed = 0
         cockpit.Torque = 0
         cockpit.TurnSpeed = 0
-        print("[JetController] Disabled VehicleSeat built-in physics")
+        cockpit.Disabled = true  -- Disable VehicleSeat completely
     end
 
-    print("[JetController] COCKPIT unanchored:", cockpit.Name, "Anchored:", cockpit.Anchored)
+    -- SIMPLE PHYSICS: Just use BodyVelocity on the cockpit
+    local bodyVel = Instance.new("BodyVelocity")
+    bodyVel.Name = "JetBodyVelocity"
+    bodyVel.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+    bodyVel.Velocity = Vector3.new(0, 50, 0)  -- Start with upward velocity
+    bodyVel.Parent = cockpit
 
-    -- Unanchor all other parts and disable collision so they can move freely
-    for _, part in ipairs(JetController.JetParts) do
-        part.Anchored = false
-        part.CanCollide = false  -- Disable collision to prevent parts from fighting each other
-        print("[JetController] Unanchored:", part.Name, "IsAnchored:", part.Anchored, "CanCollide:", part.CanCollide)
-    end
-    print("[JetController] Finished unanchoring all jet parts")
-
-    -- Check for welds
-    local weldCount = 0
-    for _, part in ipairs(JetController.JetParts) do
-        for _, child in ipairs(part:GetChildren()) do
-            if child:IsA("WeldConstraint") then
-                weldCount = weldCount + 1
-            end
-        end
-    end
-    print("[JetController] Found", weldCount, "WeldConstraints connecting parts")
-
-    -- Create Attachment for constraints
-    local attachment = Instance.new("Attachment")
-    attachment.Name = "JetAttachment"
-    attachment.Parent = cockpit
-
-    -- Create LinearVelocity for movement (modern replacement for BodyVelocity)
-    local linearVel = Instance.new("LinearVelocity")
-    linearVel.Name = "JetLinearVelocity"
-    linearVel.Attachment0 = attachment
-    linearVel.MaxForce = math.huge
-    linearVel.VectorVelocity = Vector3.new(0, 0, 0)
-    linearVel.RelativeTo = Enum.ActuatorRelativeTo.World
-    linearVel.Parent = cockpit
-
-    -- Create AlignOrientation for rotation (modern replacement for BodyGyro)
-    local alignOrientation = Instance.new("AlignOrientation")
-    alignOrientation.Name = "JetAlignOrientation"
-    alignOrientation.Attachment0 = attachment
-    alignOrientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
-    alignOrientation.MaxTorque = math.huge
-    alignOrientation.Responsiveness = 50
-    alignOrientation.CFrame = cockpit.CFrame
-    alignOrientation.Parent = cockpit
-
-    -- VERIFY: Double-check cockpit is unanchored after creating physics
-    if cockpit.Anchored then
-        warn("[JetController] WARNING: Cockpit re-anchored itself! Forcing unanchor...")
-        cockpit.Anchored = false
-    end
-
-    print("[JetController] Physics created - Ready to fly!")
-    print("[JetController] LinearVelocity MaxForce:", linearVel.MaxForce)
-    print("[JetController] AlignOrientation MaxTorque:", alignOrientation.MaxTorque)
+    print("[JetController] Created BodyVelocity - testing upward movement...")
     print("[JetController] Cockpit Anchored:", cockpit.Anchored)
-    print("[JetController] Assembly Root:", cockpit:GetRootPart().Name)
+    print("[JetController] Cockpit CanCollide:", cockpit.CanCollide)
+    print("[JetController] Cockpit Massless:", cockpit.Massless)
 
-    -- FINAL CHECK: Verify in the next frame
-    task.wait(0.1)
-    print("[JetController] FINAL CHECK - Cockpit still unanchored?", not cockpit.Anchored)
-
-    -- Activate engine effects
-    for _, engine in ipairs(JetController.Engines) do
-        local fire = engine:FindFirstChild("EngineEffect")
-        local smoke = engine:FindFirstChild("EngineSmoke")
-        if fire then fire.Enabled = true end
-        if smoke then smoke.Enabled = true end
+    -- Wait and check if position changes
+    local startPos = cockpit.Position
+    task.wait(1)
+    local endPos = cockpit.Position
+    local moved = (endPos - startPos).Magnitude
+    print("[JetController] After 1 second - Moved distance:", moved, "studs")
+    if moved < 1 then
+        warn("[JetController] NOT MOVING! Position unchanged!")
+    else
+        print("[JetController] SUCCESS! Jet is moving!")
     end
 
     -- Set camera to follow jet
@@ -209,19 +174,14 @@ function JetController:StopControl()
 
     -- Remove physics
     if JetController.CurrentCockpit then
-        local linearVel = JetController.CurrentCockpit:FindFirstChild("JetLinearVelocity")
-        local alignOrientation = JetController.CurrentCockpit:FindFirstChild("JetAlignOrientation")
-        local attachment = JetController.CurrentCockpit:FindFirstChild("JetAttachment")
-        if linearVel then linearVel:Destroy() end
-        if alignOrientation then alignOrientation:Destroy() end
-        if attachment then attachment:Destroy() end
+        local bodyVel = JetController.CurrentCockpit:FindFirstChild("JetBodyVelocity")
+        if bodyVel then bodyVel:Destroy() end
     end
 
-    -- Re-anchor all parts and re-enable collision
+    -- Re-anchor all parts
     for _, part in ipairs(JetController.JetParts) do
         if part and part.Parent then
             part.Anchored = true
-            part.CanCollide = true
         end
     end
     print("[JetController] Re-anchored all jet parts")
@@ -240,7 +200,7 @@ function JetController:StopControl()
     print("[JetController] Stopped control")
 end
 
--- Update jet physics (mouse-based flight)
+-- Update jet physics - SIMPLE VERSION
 local debugCounter = 0
 function JetController:Update(deltaTime)
     if not JetController.Active or not JetController.CurrentCockpit then
@@ -248,33 +208,20 @@ function JetController:Update(deltaTime)
     end
 
     local cockpit = JetController.CurrentCockpit
-    local linearVel = cockpit:FindFirstChild("JetLinearVelocity")
-    local alignOrientation = cockpit:FindFirstChild("JetAlignOrientation")
+    local bodyVel = cockpit:FindFirstChild("JetBodyVelocity")
 
-    if not linearVel or not alignOrientation then
-        warn("[JetController] Physics objects missing!")
+    if not bodyVel then
+        warn("[JetController] BodyVelocity missing!")
         return
     end
 
-    -- CRITICAL: If cockpit becomes anchored, force unanchor every frame
+    -- Force unanchor every frame
     if cockpit.Anchored then
-        warn("[JetController] BUG: Cockpit became anchored during flight! Re-unanchoring...")
+        warn("[JetController] Cockpit anchored! Re-unanchoring...")
         cockpit.Anchored = false
     end
 
-    -- Debug every 60 frames (about 1 second)
-    debugCounter = debugCounter + 1
-    if debugCounter >= 60 then
-        debugCounter = 0
-        print("[JetController] Update - Throttle:", JetController.Throttle)
-        print("  INTENDED Velocity:", linearVel.VectorVelocity.Magnitude)
-        print("  ACTUAL Velocity:", cockpit.AssemblyLinearVelocity.Magnitude)
-        print("  Anchored:", cockpit.Anchored, "CanCollide:", cockpit.CanCollide)
-        print("  Position:", cockpit.Position)
-        print("  LinearVel enabled:", linearVel.Enabled, "Parent:", linearVel.Parent ~= nil)
-    end
-
-    -- Update throttle
+    -- Update throttle with W/S
     if input.W then
         JetController.Throttle = math.min(1, JetController.Throttle + THROTTLE_SPEED * deltaTime)
     end
@@ -282,50 +229,32 @@ function JetController:Update(deltaTime)
         JetController.Throttle = math.max(0, JetController.Throttle - THROTTLE_SPEED * deltaTime)
     end
 
-    -- Calculate speed
-    local baseSpeed = JetController.MaxSpeed * JetController.Throttle
-    local speed = baseSpeed
+    -- SUPER SIMPLE: Just go up and forward
+    local forwardSpeed = 100 * JetController.Throttle  -- Forward speed
+    local upSpeed = 50  -- Always hover upward
 
-    -- Apply afterburner
-    if input.Space then
-        speed = speed * AFTERBURNER_MULTIPLIER
-    end
+    -- Forward direction (where cockpit faces)
+    local forward = cockpit.CFrame.LookVector * forwardSpeed
 
-    -- Calculate velocity based on where cockpit is facing
-    local forwardVelocity = cockpit.CFrame.LookVector * speed
+    -- Apply velocity
+    bodyVel.Velocity = forward + Vector3.new(0, upSpeed, 0)
 
-    -- Add hover force - always push upward to counteract gravity
-    local hoverForce = 30  -- Base hover force
-
-    -- Add lift from wings when moving
-    local liftForce = 0
-    for _, wing in ipairs(JetController.Wings) do
-        liftForce = liftForce + (wing:GetAttribute("LiftPower") or 0)
-    end
-
-    -- Total upward velocity = hover + lift (lift increases with throttle)
-    local upwardVelocity = hoverForce + (liftForce * 0.2 * JetController.Throttle)
-
-    linearVel.VectorVelocity = forwardVelocity + Vector3.new(0, upwardVelocity, 0)
-
-    -- WASD FLIGHT CONTROLS (no mouse)
-    local currentCFrame = cockpit.CFrame
-
-    -- A/D for turning left/right (yaw)
-    local turnAmount = 0
+    -- Simple turning with A/D
     if input.A then
-        turnAmount = TURN_SPEED
+        cockpit.CFrame = cockpit.CFrame * CFrame.Angles(0, math.rad(TURN_SPEED), 0)
     elseif input.D then
-        turnAmount = -TURN_SPEED
+        cockpit.CFrame = cockpit.CFrame * CFrame.Angles(0, math.rad(-TURN_SPEED), 0)
     end
 
-    -- Apply turn
-    if turnAmount ~= 0 then
-        currentCFrame = currentCFrame * CFrame.Angles(0, math.rad(turnAmount), 0)
+    -- Debug every second
+    debugCounter = debugCounter + 1
+    if debugCounter >= 60 then
+        debugCounter = 0
+        print("[JetController] Throttle:", JetController.Throttle)
+        print("  Velocity:", bodyVel.Velocity.Magnitude, "studs/sec")
+        print("  Position:", cockpit.Position)
+        print("  Anchored:", cockpit.Anchored)
     end
-
-    -- Set target orientation
-    alignOrientation.CFrame = currentCFrame
 end
 
 -- Fire weapons
