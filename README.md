@@ -1,75 +1,223 @@
-# Build a Hovercraft for Treasure
+# Base Building Game
 
-A Roblox game inspired by "Build a Boat for Treasure" where players build hovercrafts to collect treasure!
+A complete Roblox base building system with grid snapping, 24+ block types, and intuitive controls!
 
-## 🚨 GUI Not Showing Up? Start Here!
+## 🎮 Quick Start
 
-If the shop GUI doesn't appear when you test:
+1. **Install in Roblox Studio**
+2. **Press Play** to test
+3. **Press B** to open the build menu
+4. **Click a block** to start building
+5. **Click** to place blocks
+6. **Press R** to rotate
+7. **Press X** to delete blocks
 
-1. **Quick Test**: Use `SIMPLE_SHOP_TEST.lua` first
-   - Create a LocalScript in StarterGui
-   - Copy the contents of `SIMPLE_SHOP_TEST.lua` into it
-   - Press Play - you should see a green button
-   - If you do, your GUI works! Continue with full installation.
+## ✨ Features
 
-2. **Verify Setup**: Use `SETUP_VERIFICATION.lua`
-   - Create a LocalScript in StarterPlayer > StarterPlayerScripts
-   - Copy the contents of `SETUP_VERIFICATION.lua` into it
-   - Check Output window (F9) for detailed diagnostics
+- 🏗️ **24 Different Block Types** - Foundations, walls, roofs, stairs, decorative pieces
+- 📐 **Grid Snapping** - Automatic 4-stud grid for perfect alignment
+- 🎨 **Real-time Preview** - Green/red indicators for valid placement
+- 🔄 **Block Rotation** - Rotate blocks with R key
+- 🗑️ **Delete Mode** - Remove blocks with X key
+- 🎯 **Collision Detection** - Smart overlap prevention
+- 🆓 **Free Building** - Unlimited blocks, no currency needed
 
-3. **Read Troubleshooting**: See `TROUBLESHOOTING.md` for detailed help
+## 🎯 Controls
 
-**Most Common Issue**: Making sure scripts are the correct type:
-- `ShopGui.lua` must be a **LocalScript** (not Script)
-- `ShopController.lua` must be a **LocalScript** (not Script)
-- `ShopSystem.lua` must be a **Script** (not LocalScript)
+| Key/Action | Function |
+|------------|----------|
+| **B** | Open/close block menu |
+| **Left Click** | Place block or delete (in delete mode) |
+| **R** | Rotate block 90 degrees |
+| **X** | Toggle delete mode |
+| **ESC** | Exit building mode |
 
-## Features
+## 📦 Block Categories
 
-- **Shop System**: Buy parts to build your hovercraft
-- **Currency System**: Earn coins by collecting treasure
-- **GUI Shop**: Easy-to-use interface for purchasing items
-- **Hovercraft Parts**: Various blocks, thrusters, and decorations
+### Foundations & Floors (3 types)
+- Foundation, Floor, Large Floor
 
-## Installation
+### Walls (3 types)
+- Standard Wall, Tall Wall, Corner Wall
 
-1. Open Roblox Studio
-2. Create a new place or open your existing game
-3. Import the scripts into the corresponding folders:
-   - `ServerScriptService/` → ServerScriptService in Roblox Studio
-   - `ReplicatedStorage/` → ReplicatedStorage in Roblox Studio
-   - `StarterGui/` → StarterGui in Roblox Studio
-   - `StarterPlayer/` → StarterPlayer in Roblox Studio
+### Openings (3 types)
+- Doorway, Window Wall, Large Window
 
-## Structure
+### Roofs (3 types)
+- Angled Roof, Roof Corner, Flat Roof
+
+### Stairs & Ramps (3 types)
+- Ramp, Stairs, Small Ramp
+
+### Decorative (9 types)
+- Cubes, Spheres, Pillars, Platforms, Beams
+
+## 📁 Installation
+
+### Method 1: Copy Files Directly
+
+1. Open your Roblox Studio place
+2. Copy the scripts into these locations:
 
 ```
-ServerScriptService/
-├── ShopSystem.lua          # Main shop server logic
-└── DataManager.lua         # Player data and currency management
+📁 ServerScriptService
+   └── WorkspaceSetup.lua           (Script)
 
-ReplicatedStorage/
-└── Modules/
-    └── ShopCatalog.lua     # Item catalog and configurations
+📁 ReplicatedStorage
+   └── 📁 Modules
+       └── BlockCatalog.lua         (ModuleScript)
 
-StarterGui/
-└── ShopGui/
-    └── ShopGui.lua         # GUI creation script
+📁 StarterPlayer
+   └── 📁 StarterPlayerScripts
+       └── BuildingSystem.lua       (LocalScript)
 
-StarterPlayer/
-└── StarterPlayerScripts/
-    └── ShopController.lua  # Client-side shop controller
+📁 StarterGui
+   └── 📁 BuildingGui
+       └── BuildingGui.lua          (LocalScript)
 ```
 
-## How to Use
+### Method 2: Quick Setup
 
-1. Players start with 100 coins
-2. Open the shop by pressing the "SHOP" button on screen
-3. Browse and purchase hovercraft parts
-4. Build your hovercraft and collect treasure to earn more coins!
+1. Create the folder structure above
+2. Copy each `.lua` file to its corresponding location
+3. Make sure to use the correct script types (see above)
+4. Press **Play** and test!
 
-## Customization
+## 🏗️ Project Structure
 
-- Edit `ShopCatalog.lua` to add/remove items
-- Modify starting coins in `DataManager.lua`
-- Customize GUI colors and layout in `ShopGui.lua`
+```
+venice-backend/
+├── ServerScriptService/
+│   └── WorkspaceSetup.lua              # Creates build plate and environment
+│
+├── ReplicatedStorage/
+│   └── Modules/
+│       └── BlockCatalog.lua            # All block definitions (24 blocks)
+│
+├── StarterPlayer/StarterPlayerScripts/
+│   └── BuildingSystem.lua              # Core building logic (600+ lines)
+│
+├── StarterGui/
+│   └── BuildingGui/
+│       └── BuildingGui.lua             # User interface and menus
+│
+└── Documentation/
+    ├── README.md                       # This file
+    ├── BUILDING_SYSTEM_GUIDE.md        # Complete user guide
+    └── TROUBLESHOOTING.md              # Common issues and fixes
+```
+
+## 🎓 How to Use
+
+### Building Your First Structure
+
+1. **Open Menu**: Press **B** to open the block menu
+2. **Select Block**: Click on any block type (e.g., "Foundation")
+3. **Position**: Move your mouse to see the preview
+   - **Green outline** = Valid placement
+   - **Red outline** = Invalid (overlapping or too far)
+4. **Rotate**: Press **R** to rotate the block
+5. **Place**: Click to place the block
+6. **Repeat**: Select more blocks and keep building!
+
+### Deleting Blocks
+
+1. **Enable Delete Mode**: Press **X**
+2. **Click Block**: Click on any block you placed to delete it
+3. **Exit Delete Mode**: Press **X** again
+
+## 🔧 Customization
+
+### Adding New Blocks
+
+Edit `/ReplicatedStorage/Modules/BlockCatalog.lua`:
+
+```lua
+{
+    Name = "Custom Block",
+    Category = "Custom",
+    Description = "Your custom block",
+    Size = Vector3.new(4, 4, 4),
+    Color = Color3.fromRGB(255, 100, 100),
+    Material = Enum.Material.Plastic,
+    Price = 0,
+    Shape = "Block"
+}
+```
+
+### Changing Grid Size
+
+In `BlockCatalog.lua`, change:
+```lua
+BlockCatalog.GridSize = 4  -- Change to desired grid size
+```
+
+### Adjusting Max Distance
+
+In `BuildingSystem.lua`, change:
+```lua
+MaxPlacementDistance = 100,  -- Change to desired distance
+```
+
+## 🐛 Troubleshooting
+
+### Build menu won't open
+- ✅ Check that `BuildingGui.lua` is a **LocalScript** in StarterGui
+- ✅ Check console (F9) for errors
+- ✅ Make sure `BlockCatalog.lua` is in ReplicatedStorage/Modules
+
+### Blocks won't place (red preview)
+- ✅ You might be too far away (max 100 studs)
+- ✅ Block might be overlapping with another block
+- ✅ Try a different position
+
+### Can't delete blocks
+- ✅ Make sure delete mode is ON (press X)
+- ✅ You can only delete blocks you placed
+- ✅ Click directly on the block
+
+### Preview not showing
+- ✅ Make sure you selected a block from the menu
+- ✅ Check if `BuildingSystem.lua` loaded (check console)
+- ✅ Try pressing B to reopen the menu
+
+## 📚 Documentation
+
+- **BUILDING_SYSTEM_GUIDE.md** - Complete feature documentation
+- **TROUBLESHOOTING.md** - Detailed troubleshooting guide
+
+## 🎯 Technical Details
+
+- **Grid System**: 4-stud grid snapping
+- **Collision**: Region3-based detection
+- **Ownership**: UserId-based block ownership
+- **Max Distance**: 100 studs from player
+- **Block Types**: 24 pre-configured blocks
+- **Categories**: 7 organized categories
+
+## 🚀 Future Features
+
+Potential additions:
+- Save/load builds to DataStore
+- Building templates
+- Color customization
+- Team building permissions
+- Block limits per player
+- Build zones/plots
+- Material variants
+
+## 📝 License
+
+Free to use and modify for your Roblox games!
+
+## 💡 Tips
+
+- **Start with Foundations**: Build a solid base first
+- **Use Grid Snapping**: Blocks automatically align perfectly
+- **Plan Ahead**: Think about your structure before building
+- **Rotate Early**: Press R before placing to set rotation
+- **Delete Mode**: Use X for quick deletion instead of selecting each block
+
+## 🎮 Have Fun Building!
+
+This system is designed to be simple yet powerful. Start with basic structures and work your way up to complex buildings. Happy building! 🏗️
