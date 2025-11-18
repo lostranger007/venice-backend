@@ -1,10 +1,5 @@
---[[
-    BuildingSystem.lua
-    Handles block placement, rotation, and welding
-    Location: StarterPlayer > StarterPlayerScripts > BuildingSystem (LocalScript)
-]]
-
-print("[BuildingSystem] Starting...")
+-- BuildingSystem.lua
+-- Base building system with grid snapping, block placement, and deletion
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,320 +10,596 @@ local player = Players.LocalPlayer
 local mouse = player:GetMouse()
 local camera = workspace.CurrentCamera
 
-local spawnFunc = ReplicatedStorage:WaitForChild("SpawnItem")
+-- Load block catalog
+local BlockCatalog = require(ReplicatedStorage.Modules.BlockCatalog)
 
-local BuildingSystem = {}
-BuildingSystem.Enabled = false
-BuildingSystem.CurrentBlock = nil
-BuildingSystem.PreviewBlock = nil
-BuildingSystem.Rotation = 0
-BuildingSystem.GridSize = 1
-BuildingSystem.MaxPlaceDistance = 50
-BuildingSystem.DeleteModeEnabled = false  -- Toggle for delete mode
+-- Building system state
+local BuildingSystem = {
+	IsBuilding = false,
+	CurrentBlock = nil,
+	PreviewPart = nil,
+	DeleteMode = false,
+	CurrentRotation = 0, -- Rotation in 90-degree increments (0, 90, 180, 270)
+	GridSize = BlockCatalog.GridSize,
+	MaxPlacementDistance = 100,
+	PlacedParts = {} -- Track all placed parts
+}
 
--- Create build plate
-local buildPlate = Instance.new("Part")
-buildPlate.Name = "BuildPlate"
-buildPlate.Size = Vector3.new(100, 1, 100)
-buildPlate.Position = Vector3.new(0, 0, 0)
-buildPlate.Anchored = true
-buildPlate.BrickColor = BrickColor.new("Dark green")
-buildPlate.Material = Enum.Material.Grass
-buildPlate.TopSurface = Enum.SurfaceType.Smooth
-buildPlate.BottomSurface = Enum.SurfaceType.Smooth
-buildPlate.Parent = workspace
-
--- Create preview
-function BuildingSystem:CreatePreview(itemData)
-    if BuildingSystem.PreviewBlock then
-        BuildingSystem.PreviewBlock:Destroy()
-    end
-
-    local preview = Instance.new("Part")
-    preview.Name = "PreviewBlock"
-    preview.Size = itemData.Size
-    preview.Color = itemData.Color
-    preview.Material = Enum.Material.Neon
-    preview.Transparency = 0.5
-    preview.CanCollide = false
-    preview.Anchored = true
-    preview.TopSurface = Enum.SurfaceType.Smooth
-    preview.BottomSurface = Enum.SurfaceType.Smooth
-
-    local selection = Instance.new("SelectionBox")
-    selection.Adornee = preview
-    selection.LineThickness = 0.05
-    selection.Color3 = Color3.fromRGB(100, 255, 100)
-    selection.Parent = preview
-
-    preview.Parent = workspace
-    BuildingSystem.PreviewBlock = preview
-end
-
--- Snap to grid
+-- Helper function to snap position to grid
 function BuildingSystem:SnapToGrid(position)
-    local g = BuildingSystem.GridSize
-    return Vector3.new(
-        math.floor(position.X / g + 0.5) * g,
-        math.floor(position.Y / g + 0.5) * g,
-        math.floor(position.Z / g + 0.5) * g
-    )
+	local g = self.GridSize
+	return Vector3.new(
+		math.floor(position.X / g + 0.5) * g,
+		math.floor(position.Y / g + 0.5) * g,
+		math.floor(position.Z / g + 0.5) * g
+	)
 end
 
--- Check if preview block overlaps with existing blocks
-function BuildingSystem:IsOverlapping()
-    if not BuildingSystem.PreviewBlock then
-        return false
-    end
+-- Create a block part based on block data
+function BuildingSystem:CreateBlockPart(blockData, isPreview)
+	local part
 
-    -- Use a much smaller check region to only prevent major overlaps
-    -- This allows blocks to be placed adjacent/touching
-    local previewSize = BuildingSystem.PreviewBlock.Size
-    local previewPos = BuildingSystem.PreviewBlock.Position
+	-- Create different shapes based on block type
+	if blockData.Shape == "Block" then
+		part = Instance.new("Part")
+		part.Shape = Enum.PartType.Block
+	elseif blockData.Shape == "Wedge" then
+		part = Instance.new("WedgePart")
+	elseif blockData.Shape == "CornerWedge" then
+		part = Instance.new("CornerWedgePart")
+	elseif blockData.Shape == "Cylinder" then
+		part = Instance.new("Part")
+		part.Shape = Enum.PartType.Cylinder
+	elseif blockData.Shape == "Ball" then
+		part = Instance.new("Part")
+		part.Shape = Enum.PartType.Ball
+	elseif blockData.Shape == "Doorway" then
+		-- Create doorway using negative parts (model)
+		part = self:CreateDoorwayModel(blockData, isPreview)
+		return part
+	elseif blockData.Shape == "Window" or blockData.Shape == "LargeWindow" then
+		-- Create window using negative parts (model)
+		part = self:CreateWindowModel(blockData, isPreview)
+		return part
+	elseif blockData.Shape == "Stairs" then
+		-- Create stairs using multiple parts (model)
+		part = self:CreateStairsModel(blockData, isPreview)
+		return part
+	else
+		part = Instance.new("Part")
+	end
 
-    -- Only check 30% of block size - allows blocks to be adjacent
-    local checkSize = previewSize * 0.3
-    local region = Region3.new(
-        previewPos - (checkSize / 2),
-        previewPos + (checkSize / 2)
-    )
-    region = region:ExpandToGrid(4)
+	part.Size = blockData.Size
+	part.Color = blockData.Color
+	part.Material = blockData.Material
+	part.Name = blockData.Name
+	part.Anchored = true
+	part.CanCollide = not isPreview
 
-    local parts = workspace:FindPartsInRegion3(region, BuildingSystem.PreviewBlock, 100)
+	if isPreview then
+		part.Transparency = 0.5
+		part.CanCollide = false
+	end
 
-    -- Check if any parts are jet parts owned by player
-    for _, part in ipairs(parts) do
-        if part:IsA("BasePart") and
-           part:GetAttribute("IsJetPart") and
-           part:GetAttribute("Owner") == player.UserId then
-            -- Additional check: only block if centers are very close (within 2 studs)
-            local distance = (part.Position - previewPos).Magnitude
-            if distance < 2 then
-                return true
-            end
-        end
-    end
+	-- Add attributes for tracking
+	part:SetAttribute("IsBasePart", true)
+	part:SetAttribute("BlockType", blockData.Name)
+	part:SetAttribute("Owner", player.UserId)
 
-    return false
+	return part
 end
 
--- Check valid placement
+-- Create doorway model (wall with door cutout)
+function BuildingSystem:CreateDoorwayModel(blockData, isPreview)
+	local model = Instance.new("Model")
+	model.Name = blockData.Name
+
+	-- Main wall
+	local wall = Instance.new("Part")
+	wall.Size = blockData.Size
+	wall.Color = blockData.Color
+	wall.Material = blockData.Material
+	wall.Anchored = true
+	wall.CanCollide = not isPreview
+	wall.Name = "Wall"
+
+	-- Top section above door
+	local topSection = Instance.new("Part")
+	topSection.Size = Vector3.new(blockData.Size.X, 1, blockData.Size.Z)
+	topSection.Color = blockData.Color
+	topSection.Material = blockData.Material
+	topSection.Anchored = true
+	topSection.CanCollide = not isPreview
+	topSection.Name = "TopSection"
+	topSection.Parent = model
+
+	-- Left section
+	local leftSection = Instance.new("Part")
+	leftSection.Size = Vector3.new(0.5, 3, blockData.Size.Z)
+	leftSection.Color = blockData.Color
+	leftSection.Material = blockData.Material
+	leftSection.Anchored = true
+	leftSection.CanCollide = not isPreview
+	leftSection.Name = "LeftSection"
+	leftSection.Parent = model
+
+	-- Right section
+	local rightSection = Instance.new("Part")
+	rightSection.Size = Vector3.new(0.5, 3, blockData.Size.Z)
+	rightSection.Color = blockData.Color
+	rightSection.Material = blockData.Material
+	rightSection.Anchored = true
+	rightSection.CanCollide = not isPreview
+	rightSection.Name = "RightSection"
+	rightSection.Parent = model
+
+	if isPreview then
+		for _, part in ipairs(model:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.Transparency = 0.5
+				part.CanCollide = false
+			end
+		end
+	end
+
+	-- Set PrimaryPart
+	model.PrimaryPart = topSection
+
+	-- Add attributes
+	model:SetAttribute("IsBasePart", true)
+	model:SetAttribute("BlockType", blockData.Name)
+	model:SetAttribute("Owner", player.UserId)
+
+	return model
+end
+
+-- Create window model (wall with window cutout)
+function BuildingSystem:CreateWindowModel(blockData, isPreview)
+	local model = Instance.new("Model")
+	model.Name = blockData.Name
+
+	local windowHeight = blockData.Shape == "LargeWindow" and 2.5 or 1.5
+	local windowWidth = blockData.Shape == "LargeWindow" and 3 or 2
+
+	-- Top section
+	local topSection = Instance.new("Part")
+	topSection.Size = Vector3.new(blockData.Size.X, (blockData.Size.Y - windowHeight) / 2, blockData.Size.Z)
+	topSection.Color = blockData.Color
+	topSection.Material = blockData.Material
+	topSection.Anchored = true
+	topSection.CanCollide = not isPreview
+	topSection.Name = "TopSection"
+	topSection.Parent = model
+
+	-- Bottom section
+	local bottomSection = Instance.new("Part")
+	bottomSection.Size = Vector3.new(blockData.Size.X, (blockData.Size.Y - windowHeight) / 2, blockData.Size.Z)
+	bottomSection.Color = blockData.Color
+	bottomSection.Material = blockData.Material
+	bottomSection.Anchored = true
+	bottomSection.CanCollide = not isPreview
+	bottomSection.Name = "BottomSection"
+	bottomSection.Parent = model
+
+	-- Left section
+	local leftSection = Instance.new("Part")
+	leftSection.Size = Vector3.new((blockData.Size.X - windowWidth) / 2, windowHeight, blockData.Size.Z)
+	leftSection.Color = blockData.Color
+	leftSection.Material = blockData.Material
+	leftSection.Anchored = true
+	leftSection.CanCollide = not isPreview
+	leftSection.Name = "LeftSection"
+	leftSection.Parent = model
+
+	-- Right section
+	local rightSection = Instance.new("Part")
+	rightSection.Size = Vector3.new((blockData.Size.X - windowWidth) / 2, windowHeight, blockData.Size.Z)
+	rightSection.Color = blockData.Color
+	rightSection.Material = blockData.Material
+	rightSection.Anchored = true
+	rightSection.CanCollide = not isPreview
+	rightSection.Name = "RightSection"
+	rightSection.Parent = model
+
+	if isPreview then
+		for _, part in ipairs(model:GetDescendants()) do
+			if part:IsA("BasePart") then
+				part.Transparency = 0.5
+				part.CanCollide = false
+			end
+		end
+	end
+
+	model.PrimaryPart = topSection
+
+	model:SetAttribute("IsBasePart", true)
+	model:SetAttribute("BlockType", blockData.Name)
+	model:SetAttribute("Owner", player.UserId)
+
+	return model
+end
+
+-- Create stairs model (multiple steps)
+function BuildingSystem:CreateStairsModel(blockData, isPreview)
+	local model = Instance.new("Model")
+	model.Name = blockData.Name
+
+	local numSteps = 4
+	local stepHeight = blockData.Size.Y / numSteps
+	local stepDepth = blockData.Size.Z / numSteps
+
+	for i = 1, numSteps do
+		local step = Instance.new("Part")
+		step.Size = Vector3.new(blockData.Size.X, stepHeight, stepDepth * i)
+		step.Color = blockData.Color
+		step.Material = blockData.Material
+		step.Anchored = true
+		step.CanCollide = not isPreview
+		step.Name = "Step" .. i
+		step.Parent = model
+
+		if isPreview then
+			step.Transparency = 0.5
+			step.CanCollide = false
+		end
+
+		if i == 1 then
+			model.PrimaryPart = step
+		end
+	end
+
+	model:SetAttribute("IsBasePart", true)
+	model:SetAttribute("BlockType", blockData.Name)
+	model:SetAttribute("Owner", player.UserId)
+
+	return model
+end
+
+-- Position doorway parts correctly
+function BuildingSystem:PositionDoorwayParts(model, position, rotation)
+	local parts = model:GetChildren()
+	local cframe = CFrame.new(position) * CFrame.Angles(0, math.rad(rotation), 0)
+
+	for _, part in ipairs(parts) do
+		if part:IsA("BasePart") then
+			if part.Name == "TopSection" then
+				part.CFrame = cframe * CFrame.new(0, 1.5, 0)
+			elseif part.Name == "LeftSection" then
+				part.CFrame = cframe * CFrame.new(-1.75, -0.5, 0)
+			elseif part.Name == "RightSection" then
+				part.CFrame = cframe * CFrame.new(1.75, -0.5, 0)
+			end
+		end
+	end
+end
+
+-- Position window parts correctly
+function BuildingSystem:PositionWindowParts(model, position, rotation, blockData)
+	local parts = model:GetChildren()
+	local cframe = CFrame.new(position) * CFrame.Angles(0, math.rad(rotation), 0)
+
+	local windowHeight = blockData.Shape == "LargeWindow" and 2.5 or 1.5
+	local windowWidth = blockData.Shape == "LargeWindow" and 3 or 2
+
+	for _, part in ipairs(parts) do
+		if part:IsA("BasePart") then
+			if part.Name == "TopSection" then
+				local yOffset = blockData.Size.Y / 2 - part.Size.Y / 2
+				part.CFrame = cframe * CFrame.new(0, yOffset, 0)
+			elseif part.Name == "BottomSection" then
+				local yOffset = -(blockData.Size.Y / 2 - part.Size.Y / 2)
+				part.CFrame = cframe * CFrame.new(0, yOffset, 0)
+			elseif part.Name == "LeftSection" then
+				local xOffset = -(blockData.Size.X / 2 - part.Size.X / 2)
+				part.CFrame = cframe * CFrame.new(xOffset, 0, 0)
+			elseif part.Name == "RightSection" then
+				local xOffset = blockData.Size.X / 2 - part.Size.X / 2
+				part.CFrame = cframe * CFrame.new(xOffset, 0, 0)
+			end
+		end
+	end
+end
+
+-- Position stairs parts correctly
+function BuildingSystem:PositionStairsParts(model, position, rotation, blockData)
+	local parts = model:GetChildren()
+	local cframe = CFrame.new(position) * CFrame.Angles(0, math.rad(rotation), 0)
+
+	local numSteps = 4
+	local stepHeight = blockData.Size.Y / numSteps
+	local stepDepth = blockData.Size.Z / numSteps
+
+	for i, part in ipairs(parts) do
+		if part:IsA("BasePart") and part.Name:match("Step") then
+			local stepNum = tonumber(part.Name:match("%d+"))
+			if stepNum then
+				local yOffset = -blockData.Size.Y / 2 + stepHeight * stepNum - stepHeight / 2
+				local zOffset = -blockData.Size.Z / 2 + (stepDepth * stepNum) / 2
+				part.CFrame = cframe * CFrame.new(0, yOffset, zOffset)
+			end
+		end
+	end
+end
+
+-- Create preview block
+function BuildingSystem:CreatePreview()
+	if self.PreviewPart then
+		self.PreviewPart:Destroy()
+	end
+
+	if not self.CurrentBlock then return end
+
+	self.PreviewPart = self:CreateBlockPart(self.CurrentBlock, true)
+	self.PreviewPart.Parent = workspace
+
+	-- Add selection box for visual feedback
+	local selectionBox = Instance.new("SelectionBox")
+	selectionBox.LineThickness = 0.05
+	selectionBox.Color3 = Color3.fromRGB(0, 255, 0)
+	selectionBox.SurfaceTransparency = 0.8
+
+	if self.PreviewPart:IsA("Model") then
+		selectionBox.Adornee = self.PreviewPart.PrimaryPart
+	else
+		selectionBox.Adornee = self.PreviewPart
+	end
+
+	selectionBox.Parent = self.PreviewPart
+end
+
+-- Check if placement position is valid (no overlap)
 function BuildingSystem:IsValidPlacement(position)
-    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        local distance = (position - player.Character.HumanoidRootPart.Position).Magnitude
-        if distance > BuildingSystem.MaxPlaceDistance then
-            return false
-        end
-    end
+	if not self.CurrentBlock then return false end
 
-    -- Check for overlaps with existing blocks
-    if BuildingSystem:IsOverlapping() then
-        return false
-    end
+	-- Check distance from player
+	local character = player.Character
+	if not character or not character.PrimaryPart then return false end
 
-    return true
+	local distance = (position - character.PrimaryPart.Position).Magnitude
+	if distance > self.MaxPlacementDistance then
+		return false
+	end
+
+	-- Check for overlapping parts
+	local size = self.CurrentBlock.Size
+	local region = Region3.new(position - size/2, position + size/2)
+	region = region:ExpandToGrid(4)
+
+	local partsInRegion = workspace:FindPartsInRegion3(region, nil, 100)
+
+	for _, part in ipairs(partsInRegion) do
+		-- Ignore terrain, preview, and non-building parts
+		if part ~= self.PreviewPart and
+		   part:GetAttribute("IsBasePart") and
+		   not part:IsDescendantOf(self.PreviewPart) then
+
+			-- Allow placement if parts are far enough apart (allow adjacent placement)
+			local partPosition = part.Position
+			local distance = (position - partPosition).Magnitude
+			local minDistance = (size.Magnitude + part.Size.Magnitude) / 4
+
+			if distance < minDistance then
+				return false
+			end
+		end
+	end
+
+	return true
 end
 
--- Update preview
+-- Update preview position and visuals
 function BuildingSystem:UpdatePreview()
-    if not BuildingSystem.Enabled or not BuildingSystem.PreviewBlock then
-        return
-    end
+	if not self.IsBuilding or not self.PreviewPart or not self.CurrentBlock then return end
 
-    local mouseRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-    raycastParams.FilterDescendantsInstances = {BuildingSystem.PreviewBlock, player.Character}
+	-- Raycast from camera through mouse
+	local ray = camera:ScreenPointToRay(mouse.X, mouse.Y)
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+	raycastParams.FilterDescendantsInstances = {self.PreviewPart, player.Character}
 
-    local rayResult = workspace:Raycast(mouseRay.Origin, mouseRay.Direction * 500, raycastParams)
+	local raycastResult = workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
 
-    if rayResult then
-        local hitPos = rayResult.Position
-        local normal = rayResult.Normal
-        local offset = normal * (BuildingSystem.PreviewBlock.Size.Y / 2)
-        local targetPos = BuildingSystem:SnapToGrid(hitPos + offset)
+	if raycastResult then
+		-- Snap to grid
+		local position = self:SnapToGrid(raycastResult.Position)
 
-        local rotation = CFrame.Angles(0, math.rad(BuildingSystem.Rotation), 0)
-        BuildingSystem.PreviewBlock.CFrame = CFrame.new(targetPos) * rotation
+		-- Offset position based on block size to place on surface
+		local offset = Vector3.new(0, self.CurrentBlock.Size.Y / 2, 0)
+		position = position + offset
 
-        local isValid = BuildingSystem:IsValidPlacement(targetPos)
-        local selection = BuildingSystem.PreviewBlock:FindFirstChildOfClass("SelectionBox")
-        if selection then
-            selection.Color3 = isValid and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
-        end
-        BuildingSystem.PreviewBlock.Color = isValid and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
-    else
-        BuildingSystem.PreviewBlock.Position = Vector3.new(0, -1000, 0)
-    end
+		-- Update preview position with rotation
+		if self.PreviewPart:IsA("Model") then
+			if self.CurrentBlock.Shape == "Doorway" then
+				self:PositionDoorwayParts(self.PreviewPart, position, self.CurrentRotation)
+			elseif self.CurrentBlock.Shape == "Window" or self.CurrentBlock.Shape == "LargeWindow" then
+				self:PositionWindowParts(self.PreviewPart, position, self.CurrentRotation, self.CurrentBlock)
+			elseif self.CurrentBlock.Shape == "Stairs" then
+				self:PositionStairsParts(self.PreviewPart, position, self.CurrentRotation, self.CurrentBlock)
+			else
+				self.PreviewPart:SetPrimaryPartCFrame(CFrame.new(position) * CFrame.Angles(0, math.rad(self.CurrentRotation), 0))
+			end
+		else
+			self.PreviewPart.CFrame = CFrame.new(position) * CFrame.Angles(0, math.rad(self.CurrentRotation), 0)
+		end
+
+		-- Update color based on validity
+		local selectionBox = self.PreviewPart:FindFirstChildOfClass("SelectionBox")
+		if selectionBox then
+			if self:IsValidPlacement(position) then
+				selectionBox.Color3 = Color3.fromRGB(0, 255, 0) -- Green = valid
+			else
+				selectionBox.Color3 = Color3.fromRGB(255, 0, 0) -- Red = invalid
+			end
+		end
+	end
 end
 
--- Place block
+-- Place block at current preview position
 function BuildingSystem:PlaceBlock()
-    if not BuildingSystem.Enabled or not BuildingSystem.PreviewBlock or not BuildingSystem.CurrentBlock then
-        return false
-    end
+	if not self.PreviewPart or not self.CurrentBlock then return end
 
-    local position = BuildingSystem.PreviewBlock.Position
+	local position
+	if self.PreviewPart:IsA("Model") then
+		position = self.PreviewPart.PrimaryPart.Position
+	else
+		position = self.PreviewPart.Position
+	end
 
-    -- Check why placement is invalid
-    if BuildingSystem:IsOverlapping() then
-        warn("[BuildingSystem] Can't place - block is overlapping with existing parts!")
-        return false
-    end
+	if not self:IsValidPlacement(position) then
+		warn("Invalid placement position")
+		return
+	end
 
-    if not BuildingSystem:IsValidPlacement(position) then
-        warn("[BuildingSystem] Invalid placement - too far away or blocked")
-        return false
-    end
+	-- Create actual block
+	local newBlock = self:CreateBlockPart(self.CurrentBlock, false)
+	newBlock.Parent = workspace
 
-    local targetCFrame = BuildingSystem.PreviewBlock.CFrame
-    local result = spawnFunc:InvokeServer(BuildingSystem.CurrentBlock.Name, targetCFrame)
+	-- Position with rotation
+	if newBlock:IsA("Model") then
+		if self.CurrentBlock.Shape == "Doorway" then
+			self:PositionDoorwayParts(newBlock, position, self.CurrentRotation)
+		elseif self.CurrentBlock.Shape == "Window" or self.CurrentBlock.Shape == "LargeWindow" then
+			self:PositionWindowParts(newBlock, position, self.CurrentRotation, self.CurrentBlock)
+		elseif self.CurrentBlock.Shape == "Stairs" then
+			self:PositionStairsParts(newBlock, position, self.CurrentRotation, self.CurrentBlock)
+		else
+			newBlock:SetPrimaryPartCFrame(CFrame.new(position) * CFrame.Angles(0, math.rad(self.CurrentRotation), 0))
+		end
+	else
+		newBlock.CFrame = CFrame.new(position) * CFrame.Angles(0, math.rad(self.CurrentRotation), 0)
+	end
 
-    if result.success then
-        print("[BuildingSystem] Block placed:", BuildingSystem.CurrentBlock.Name)
+	-- Track placed part
+	table.insert(self.PlacedParts, newBlock)
 
-        -- Weld nearby blocks (wait for block to exist in workspace)
-        task.wait(0.2)
-        BuildingSystem:WeldNearbyParts(targetCFrame.Position)
-
-        return true
-    else
-        warn("[BuildingSystem] Failed to place:", result.message)
-        return false
-    end
+	print("Placed block:", self.CurrentBlock.Name, "at", position)
 end
 
--- Weld nearby parts together (called after placing a block)
-function BuildingSystem:WeldNearbyParts(placedPosition)
-    print("[BuildingSystem] Looking for parts to weld near", placedPosition)
-
-    -- Find the block we just placed
-    local placedBlock = nil
-    for _, part in ipairs(workspace:GetDescendants()) do
-        if part:IsA("BasePart") and
-           part:GetAttribute("IsJetPart") and
-           part:GetAttribute("Owner") == player.UserId then
-            local distance = (part.Position - placedPosition).Magnitude
-            if distance < 1 then  -- Very close = the block we just placed
-                placedBlock = part
-                break
-            end
-        end
-    end
-
-    if not placedBlock then
-        warn("[BuildingSystem] Couldn't find placed block to weld!")
-        return
-    end
-
-    print("[BuildingSystem] Found placed block:", placedBlock.Name)
-
-    -- Now weld it to all nearby jet parts
-    local weldCount = 0
-    for _, part in ipairs(workspace:GetDescendants()) do
-        if part:IsA("BasePart") and
-           part ~= placedBlock and
-           part:GetAttribute("IsJetPart") and
-           part:GetAttribute("Owner") == player.UserId then
-
-            local distance = (part.Position - placedBlock.Position).Magnitude
-            if distance < 15 then  -- Increased from 10 to 15 studs
-                local weld = Instance.new("WeldConstraint")
-                weld.Part0 = placedBlock
-                weld.Part1 = part
-                weld.Parent = placedBlock
-                weldCount = weldCount + 1
-                print("[BuildingSystem] Welded", placedBlock.Name, "to", part.Name, "distance:", math.floor(distance))
-            end
-        end
-    end
-
-    print("[BuildingSystem] Created", weldCount, "welds")
-end
-
--- Delete block
+-- Delete block under mouse
 function BuildingSystem:DeleteBlock()
-    local mouseRay = camera:ScreenPointToRay(mouse.X, mouse.Y)
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-    raycastParams.FilterDescendantsInstances = {player.Character, BuildingSystem.PreviewBlock}
+	-- Raycast from camera through mouse
+	local ray = camera:ScreenPointToRay(mouse.X, mouse.Y)
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+	raycastParams.FilterDescendantsInstances = {player.Character}
 
-    local rayResult = workspace:Raycast(mouseRay.Origin, mouseRay.Direction * 500, raycastParams)
+	local raycastResult = workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
 
-    if rayResult and rayResult.Instance then
-        local hitPart = rayResult.Instance
-        if hitPart:GetAttribute("IsJetPart") and
-           hitPart:GetAttribute("Owner") == player.UserId then
-            hitPart:Destroy()
-            print("[BuildingSystem] Deleted block")
-            return true
-        end
-    end
+	if raycastResult and raycastResult.Instance then
+		local part = raycastResult.Instance
 
-    return false
+		-- Check if it's a building part owned by player
+		local owner = part:GetAttribute("Owner")
+		local isBasePart = part:GetAttribute("IsBasePart")
+
+		-- Check parent model if part itself isn't marked
+		if not isBasePart and part.Parent:IsA("Model") then
+			owner = part.Parent:GetAttribute("Owner")
+			isBasePart = part.Parent:GetAttribute("IsBasePart")
+			if isBasePart then
+				part = part.Parent
+			end
+		end
+
+		if isBasePart and owner == player.UserId then
+			-- Remove from tracked parts
+			for i, trackedPart in ipairs(self.PlacedParts) do
+				if trackedPart == part then
+					table.remove(self.PlacedParts, i)
+					break
+				end
+			end
+
+			part:Destroy()
+			print("Deleted block")
+		else
+			warn("Cannot delete: not owned by you or not a building part")
+		end
+	end
 end
 
--- Start building
-function BuildingSystem:StartBuilding(itemData)
-    BuildingSystem.Enabled = true
-    BuildingSystem.CurrentBlock = itemData
-    BuildingSystem:CreatePreview(itemData)
-    print("[BuildingSystem] Started building with:", itemData.Name)
+-- Rotate preview block
+function BuildingSystem:RotatePreview()
+	self.CurrentRotation = (self.CurrentRotation + 90) % 360
+	print("Rotation:", self.CurrentRotation)
+end
+
+-- Start building with selected block
+function BuildingSystem:StartBuilding(blockData)
+	self.IsBuilding = true
+	self.CurrentBlock = blockData
+	self.CurrentRotation = 0
+	self:CreatePreview()
+	print("Started building with:", blockData.Name)
 end
 
 -- Stop building
 function BuildingSystem:StopBuilding()
-    BuildingSystem.Enabled = false
-    BuildingSystem.CurrentBlock = nil
-    BuildingSystem.Rotation = 0
+	self.IsBuilding = false
+	self.CurrentBlock = nil
+	self.CurrentRotation = 0
 
-    if BuildingSystem.PreviewBlock then
-        BuildingSystem.PreviewBlock:Destroy()
-        BuildingSystem.PreviewBlock = nil
-    end
+	if self.PreviewPart then
+		self.PreviewPart:Destroy()
+		self.PreviewPart = nil
+	end
 
-    print("[BuildingSystem] Stopped building")
+	print("Stopped building")
 end
 
--- Input handling
-mouse.Button1Down:Connect(function()
-    if BuildingSystem.DeleteModeEnabled then
-        -- Delete mode - clicking deletes blocks
-        BuildingSystem:DeleteBlock()
-    elseif BuildingSystem.Enabled then
-        -- Build mode - clicking places blocks
-        BuildingSystem:PlaceBlock()
-    end
-end)
+-- Toggle delete mode
+function BuildingSystem:ToggleDeleteMode()
+	self.DeleteMode = not self.DeleteMode
+	print("Delete mode:", self.DeleteMode)
 
+	-- Fire event to update UI
+	local toggleEvent = ReplicatedStorage:FindFirstChild("ToggleDeleteMode")
+	if toggleEvent then
+		toggleEvent:Fire(self.DeleteMode)
+	end
+end
+
+-- Handle user input
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
+	if gameProcessed then return end
 
-    if input.KeyCode == Enum.KeyCode.R then
-        if BuildingSystem.Enabled then
-            BuildingSystem.Rotation = (BuildingSystem.Rotation + 90) % 360
-            print("[BuildingSystem] Rotated to:", BuildingSystem.Rotation)
-        end
-    elseif input.KeyCode == Enum.KeyCode.X then
-        BuildingSystem:DeleteBlock()
-    elseif input.KeyCode == Enum.KeyCode.Escape then
-        if BuildingSystem.Enabled then
-            BuildingSystem:StopBuilding()
-        end
-    end
+	-- R key - Rotate
+	if input.KeyCode == Enum.KeyCode.R and BuildingSystem.IsBuilding then
+		BuildingSystem:RotatePreview()
+	end
+
+	-- X key - Toggle delete mode
+	if input.KeyCode == Enum.KeyCode.X then
+		BuildingSystem:ToggleDeleteMode()
+	end
+
+	-- Escape key - Stop building
+	if input.KeyCode == Enum.KeyCode.Escape and BuildingSystem.IsBuilding then
+		BuildingSystem:StopBuilding()
+	end
 end)
 
--- Update loop
+-- Handle mouse click
+mouse.Button1Down:Connect(function()
+	if BuildingSystem.DeleteMode then
+		-- Delete mode
+		BuildingSystem:DeleteBlock()
+	elseif BuildingSystem.IsBuilding then
+		-- Place mode
+		BuildingSystem:PlaceBlock()
+	end
+end)
+
+-- Update preview every frame
 RunService.RenderStepped:Connect(function()
-    if BuildingSystem.Enabled then
-        BuildingSystem:UpdatePreview()
-    end
+	if BuildingSystem.IsBuilding then
+		BuildingSystem:UpdatePreview()
+	end
 end)
 
-print("[BuildingSystem] Initialized")
-print("[BuildingSystem] Controls: Click=Place, R=Rotate, X=Delete, ESC=Cancel")
-
--- Export globally
+-- Expose to global for UI to access
 _G.BuildingSystem = BuildingSystem
+
+print("BuildingSystem loaded")
 
 return BuildingSystem
