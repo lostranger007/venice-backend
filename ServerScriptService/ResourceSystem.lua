@@ -110,11 +110,18 @@ end
 
 -- Resource gathering functions
 local function gatherResource(player, resourceObject)
+	print("[ResourceSystem] gatherResource called for " .. player.Name .. " on " .. resourceObject.Name)
+
 	local inventory = ResourceSystem.PlayerInventories[player.UserId]
-	if not inventory then return end
+	if not inventory then
+		warn("[ResourceSystem] No inventory found for " .. player.Name .. "!")
+		return
+	end
 
 	local resourceType = resourceObject:GetAttribute("ResourceType")
 	local resourceAmount = resourceObject:GetAttribute("ResourceAmount")
+
+	print("[ResourceSystem] Resource type: " .. tostring(resourceType) .. ", Amount: " .. tostring(resourceAmount))
 
 	if not resourceType or not resourceAmount then
 		warn("[ResourceSystem] Resource object missing attributes!")
@@ -182,11 +189,17 @@ function ResourceSystem:Initialize()
 
 	-- Listen for ProximityPrompt triggers on all resources
 	ProximityPromptService.PromptTriggered:Connect(function(prompt, player)
+		print("[ResourceSystem] ProximityPrompt triggered by " .. player.Name)
+
 		local parent = prompt.Parent
+		print("[ResourceSystem] Prompt parent: " .. parent.Name)
 
 		-- Check if it's a resource
 		if parent:GetAttribute("ResourceType") then
+			print("[ResourceSystem] Resource detected, calling gatherResource")
 			gatherResource(player, parent)
+		else
+			print("[ResourceSystem] No ResourceType attribute found on " .. parent.Name)
 		end
 
 		-- Check if it's campfire (add fuel)
@@ -199,6 +212,8 @@ function ResourceSystem:Initialize()
 			end
 		end
 	end)
+
+	print("[ResourceSystem] ProximityPrompt listener connected!")
 
 	-- Create remote events for inventory operations
 	local inventoryEvents = Instance.new("Folder")
@@ -217,8 +232,10 @@ function ResourceSystem:Initialize()
 end
 
 function ResourceSystem:OnPlayerAdded(player)
-	-- Wait for character
-	player.CharacterAdded:Connect(function(character)
+	print("[ResourceSystem] OnPlayerAdded called for " .. player.Name)
+
+	-- Function to create inventory
+	local function createInventoryForPlayer()
 		-- Create inventory for player
 		local inventory = Inventory.new(player)
 		self.PlayerInventories[player.UserId] = inventory
@@ -228,16 +245,18 @@ function ResourceSystem:OnPlayerAdded(player)
 		-- Give starting items
 		inventory:AddItem("Wood", 10) -- Start with some wood
 		inventory:AddItem("Berries", 3)
+	end
+
+	-- Wait for character
+	player.CharacterAdded:Connect(function(character)
+		print("[ResourceSystem] Character added for " .. player.Name)
+		createInventoryForPlayer()
 	end)
 
 	-- Load character if already exists
 	if player.Character then
-		local inventory = Inventory.new(player)
-		self.PlayerInventories[player.UserId] = inventory
-
-		-- Give starting items
-		inventory:AddItem("Wood", 10)
-		inventory:AddItem("Berries", 3)
+		print("[ResourceSystem] Character already exists for " .. player.Name)
+		createInventoryForPlayer()
 	end
 end
 
